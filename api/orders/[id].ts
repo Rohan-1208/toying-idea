@@ -5,6 +5,7 @@ import { connectDB } from "../_lib/db.js";
 import { Order, ORDER_STATUSES } from "../_lib/models/Order.js";
 import { verifyAdmin, isAdminRequest } from "../_lib/auth.js";
 import { restoreCancelledOrder } from "../_lib/inventory.js";
+import { sendOrderStatusUpdateEmail } from "../_lib/mail.js";
 
 function findQuery(id: string) {
   return mongoose.isValidObjectId(id) ? { _id: id } : { orderNumber: id.toUpperCase() };
@@ -84,6 +85,13 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
 
     if (body.status === "cancelled" && prevStatus !== "cancelled") {
       await restoreCancelledOrder(existing.items, existing._id, existing.orderNumber);
+    }
+
+    // Trigger status update email if the status actually changed
+    if (body.status && body.status !== prevStatus) {
+      sendOrderStatusUpdateEmail(order, body.statusNote).catch((err) =>
+        console.error("Failed to send order status update email:", err)
+      );
     }
 
     res.status(200).json({ order });

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Order } from "../lib/types";
@@ -17,22 +17,17 @@ const STEPS: { id: Order["status"]; label: string }[] = [
 export default function TrackOrder() {
   const [params] = useSearchParams();
   const [orderNumber, setOrderNumber] = useState(params.get("order") || "");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(params.get("email") || "");
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const lookup = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const fetchOrder = async (number: string, mail: string) => {
     setError("");
     setOrder(null);
-    if (!orderNumber || !email) {
-      setError("Enter your order number and email.");
-      return;
-    }
     setLoading(true);
     try {
-      const { order } = await api.orders.track(orderNumber.trim(), email.trim());
+      const { order } = await api.orders.track(number.trim(), mail.trim());
       setOrder(order);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Order not found.");
@@ -40,6 +35,23 @@ export default function TrackOrder() {
       setLoading(false);
     }
   };
+
+  const lookup = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orderNumber || !email) {
+      setError("Enter your order number and email.");
+      return;
+    }
+    fetchOrder(orderNumber, email);
+  };
+
+  useEffect(() => {
+    const initialOrder = params.get("order") || "";
+    const initialEmail = params.get("email") || "";
+    if (initialOrder && initialEmail) {
+      fetchOrder(initialOrder, initialEmail);
+    }
+  }, [params]);
 
   const activeStep = order ? STEPS.findIndex((s) => s.id === order.status) : -1;
   const cancelled = order?.status === "cancelled";

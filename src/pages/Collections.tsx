@@ -20,9 +20,15 @@ export default function Collections() {
   const collections = useMemo(() => {
     const map = new Map<string, Product[]>();
     for (const p of items) {
-      const name = p.collectionName || "Other";
-      if (!map.has(name)) map.set(name, []);
-      map.get(name)!.push(p);
+      const name = p.collectionName;
+      if (!name) continue;
+      
+      const lower = name.toLowerCase();
+      if (lower === "f1" || lower === "valentines") {
+        const groupName = lower === "f1" ? "F1" : "Valentines";
+        if (!map.has(groupName)) map.set(groupName, []);
+        map.get(groupName)!.push(p);
+      }
     }
     return Array.from(map.entries()).map(([name, products]) => ({ name, products }));
   }, [items]);

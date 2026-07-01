@@ -6,6 +6,7 @@ import { Product } from "../_lib/models/Product.js";
 import { verifyAdmin } from "../_lib/auth.js";
 import { recordSaleLines } from "../_lib/inventory.js";
 import { normalizeEmail, positiveInt, requireString, sanitizeRecord } from "../_lib/validate.js";
+import { sendOrderConfirmationEmail } from "../_lib/mail.js";
 
 type IncomingItem = { productId?: string; slug?: string; qty: number; options?: unknown };
 
@@ -100,6 +101,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       shipping,
       total,
       paymentMethod,
+      paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
       notes,
       statusHistory: [{ status: "pending", note: "Order placed", at: new Date() }],
     });
@@ -108,6 +110,11 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       lineItems.map((li) => ({ productId: li.productId, qty: li.qty })),
       order._id,
       order.orderNumber
+    );
+
+    // Send confirmation email asynchronously (do not block client response)
+    sendOrderConfirmationEmail(order).catch((err) =>
+      console.error("Failed to send order confirmation email:", err)
     );
 
     res.status(201).json({ order });
