@@ -1,5 +1,6 @@
 import { lazy, Suspense } from "react";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { CartProvider } from "./context/CartContext";
 import { AdminAuthProvider } from "./context/AdminAuth";
 import { Layout } from "./components/Layout";
@@ -72,6 +73,7 @@ export default function App() {
           </Suspense>
         </CartProvider>
       </AdminAuthProvider>
+      <SpeedInsights />
     </BrowserRouter>
   );
 }
