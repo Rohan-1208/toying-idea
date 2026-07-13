@@ -36,7 +36,7 @@ export async function adjustStock(opts: {
           $inc: { stock: qty },
           $set: { inStock: true },
         },
-    { new: true, session }
+    { new: true, session, updatePipeline: isSale }
   );
 
   if (!product) {
