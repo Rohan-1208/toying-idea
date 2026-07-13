@@ -40,6 +40,7 @@ export interface Product {
   featured?: boolean;
   featuredRank?: number | null;
   rating?: number;
+  reviewCount?: number;
   active?: boolean;
   createdAt?: string;
   updatedAt?: string;
@@ -166,6 +167,18 @@ export interface Inquiry {
   status?: InquiryStatus;
   createdAt?: string;
   updatedAt?: string;
+}
+
+export interface Review {
+  _id?: string;
+  slug: string;
+  authorName: string;
+  rating: number;
+  title?: string;
+  body: string;
+  status?: "pending" | "approved" | "rejected";
+  verifiedPurchase?: boolean;
+  createdAt?: string;
 }
 
 export interface InventoryMovement {

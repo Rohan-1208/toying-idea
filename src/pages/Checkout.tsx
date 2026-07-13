@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
 import { formatINR } from "../lib/format";
-import { Button, Input, Select } from "../components/ui";
+import { Button, Input } from "../components/ui";
 import { PageHeader } from "../components/Layout";
 
 export default function Checkout() {
@@ -120,53 +120,69 @@ export default function Checkout() {
   };
 
   return (
-    <div className="relative pb-16">
+    <div className="relative pb-28 md:pb-16">
       <PageHeader eyebrow="Checkout" title="Almost yours" />
-      <form onSubmit={submit} className="mx-auto mt-6 grid max-w-7xl gap-10 px-5 md:grid-cols-[1.6fr_1fr] md:px-8">
+      <form id="checkout-form" onSubmit={submit} className="mx-auto mt-6 grid max-w-7xl gap-10 px-5 md:grid-cols-[1.6fr_1fr] md:px-8">
         <div className="space-y-8">
           <section>
             <h3 className="mb-4 font-display text-lg font-bold text-ink">Contact</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} required />
-              <Input label="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required />
-              <Input label="Phone" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="sm:col-span-2" />
+              <Input label="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" />
+              <Input label="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required autoComplete="email" inputMode="email" />
+              <Input label="Phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="sm:col-span-2" autoComplete="tel" inputMode="tel" placeholder="10-digit mobile" />
             </div>
           </section>
 
           <section>
             <h3 className="mb-4 font-display text-lg font-bold text-ink">Shipping address</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Address line 1" value={form.line1} onChange={(e) => set("line1", e.target.value)} className="sm:col-span-2" required />
-              <Input label="Address line 2" value={form.line2} onChange={(e) => set("line2", e.target.value)} className="sm:col-span-2" />
-              <Input label="City" value={form.city} onChange={(e) => set("city", e.target.value)} required />
-              <Input label="State" value={form.state} onChange={(e) => set("state", e.target.value)} required />
-              <Input label="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} required />
+              <Input label="Address line 1" value={form.line1} onChange={(e) => set("line1", e.target.value)} className="sm:col-span-2" required autoComplete="address-line1" />
+              <Input label="Address line 2" value={form.line2} onChange={(e) => set("line2", e.target.value)} className="sm:col-span-2" autoComplete="address-line2" />
+              <Input label="City" value={form.city} onChange={(e) => set("city", e.target.value)} required autoComplete="address-level2" />
+              <Input label="State" value={form.state} onChange={(e) => set("state", e.target.value)} required autoComplete="address-level1" />
+              <Input label="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} required autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} />
             </div>
           </section>
 
           <section>
             <h3 className="mb-4 font-display text-lg font-bold text-ink">Payment</h3>
-            <Select label="Payment method" value={form.paymentMethod} onChange={(e) => set("paymentMethod", e.target.value)}>
-              <option value="cod">Cash on delivery (COD)</option>
-              <option value="card">Credit / Debit Card</option>
-              <option value="upi">UPI (Instant Transfer)</option>
-              <option value="bank">Direct Bank Transfer</option>
-            </Select>
-            <p className="mt-2 text-xs text-ink/50">
-              Online payments will launch in a secure mock sandbox environment.
-            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {[
+                { id: "cod", label: "Cash on delivery", hint: "Pay when it arrives" },
+                { id: "upi", label: "UPI", hint: "GPay, PhonePe, Paytm" },
+                { id: "card", label: "Card", hint: "Debit / credit" },
+                { id: "bank", label: "Bank transfer", hint: "NEFT / IMPS" },
+              ].map((m) => (
+                <button
+                  key={m.id}
+                  type="button"
+                  onClick={() => set("paymentMethod", m.id)}
+                  className={`rounded-2xl border p-4 text-left transition-colors ${
+                    form.paymentMethod === m.id
+                      ? "border-clay bg-clay/10"
+                      : "border-ink/15 bg-white/50 hover:border-ink/25"
+                  }`}
+                >
+                  <p className="font-semibold text-ink">{m.label}</p>
+                  <p className="mt-0.5 text-xs text-ink/50">{m.hint}</p>
+                </button>
+              ))}
+            </div>
+            {form.paymentMethod !== "cod" && (
+              <p className="mt-3 text-xs text-ink/50">Online payments use a secure sandbox for now.</p>
+            )}
           </section>
         </div>
 
         <aside className="h-fit rounded-3xl border border-ink/10 bg-cream-100 p-6 md:sticky md:top-24">
           <h3 className="font-display text-xl font-bold text-ink">Order summary</h3>
-          <div className="mt-4 space-y-3">
+          <div className="mt-4 max-h-48 space-y-3 overflow-y-auto md:max-h-none">
             {lines.map((l) => (
-              <div key={l.slug} className="flex justify-between text-sm">
-                <span className="text-ink/70">
+              <div key={l.key} className="flex justify-between gap-3 text-sm">
+                <span className="min-w-0 text-ink/70">
                   {l.name} <span className="text-ink/40">× {l.qty}</span>
                 </span>
-                <span className="font-medium text-ink">{formatINR(l.price * l.qty)}</span>
+                <span className="shrink-0 font-medium text-ink">{formatINR(l.price * l.qty)}</span>
               </div>
             ))}
           </div>
@@ -179,6 +195,9 @@ export default function Checkout() {
               <span>Shipping</span>
               <span>{shipping === 0 ? "Free" : formatINR(shipping)}</span>
             </div>
+            {subtotal > 0 && subtotal < 1500 && (
+              <p className="text-xs text-clay-deep">Add {formatINR(1500 - subtotal)} more for free shipping</p>
+            )}
             <div className="flex justify-between border-t border-ink/10 pt-2">
               <span className="font-semibold text-ink">Total</span>
               <span className="font-display text-xl font-bold text-ink">{formatINR(total)}</span>
@@ -187,19 +206,38 @@ export default function Checkout() {
 
           {error && <p className="mt-4 rounded-xl bg-clay/10 px-3 py-2 text-sm text-clay-deep">{error}</p>}
 
-          <Button size="lg" className="mt-5 w-full" disabled={submitting}>
+          <Button size="lg" className="mt-5 hidden w-full md:inline-flex">
             {submitting ? "Processing…" : form.paymentMethod === "cod" ? "Place order" : "Proceed to Payment"}
           </Button>
-          <p className="mt-3 text-center text-xs text-ink/45">
+          <p className="mt-3 hidden text-center text-xs text-ink/45 md:block">
             You'll receive an order number to track your build.
           </p>
         </aside>
       </form>
 
+      {/* Mobile sticky checkout bar */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-cream/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <p className="text-xs text-ink/50">Total</p>
+            <p className="font-display text-xl font-bold text-ink">{formatINR(total)}</p>
+          </div>
+          <Button
+            type="submit"
+            form="checkout-form"
+            size="lg"
+            className="min-h-[48px] min-w-[10rem] flex-1"
+            disabled={submitting}
+          >
+            {submitting ? "Processing…" : form.paymentMethod === "cod" ? "Place order" : "Pay now"}
+          </Button>
+        </div>
+      </div>
+
       {/* Payment Overlay Modal */}
       {paymentStep !== "idle" && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/75 p-5 backdrop-blur-sm animate-fadeIn">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-ink/10 bg-cream-50 shadow-2xl animate-scaleIn">
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/75 p-0 backdrop-blur-sm animate-fade-in md:items-center md:p-5">
+          <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-ink/10 bg-cream-50 shadow-2xl animate-slide-up md:rounded-3xl md:animate-scale-in">
             
             {/* Step: Input Card/UPI details */}
             {paymentStep === "input" && (
@@ -352,7 +390,7 @@ export default function Checkout() {
             {paymentStep === "success" && (
               <div className="p-12 text-center space-y-6">
                 <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-teal/15 text-teal-deep">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-scaleIn">
+                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-scale-in">
                     <path d="M20 6 9 17l-5-5" />
                   </svg>
                 </div>

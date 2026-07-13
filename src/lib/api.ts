@@ -1,4 +1,4 @@
-import type { Product, Order, Inquiry, InventoryMovement } from "./types";
+import type { Product, Order, Inquiry, InventoryMovement, Review } from "./types";
 import catalog from "../data/products.json";
 
 const fallbackCatalog = catalog as Product[];
@@ -49,11 +49,7 @@ async function request<T>(
 function filterSample(query?: Record<string, string | undefined>): Product[] {
   let items = [...fallbackCatalog];
   if (!query) return items;
-  if (query.category) {
-    items = items.filter(
-      (p) => p.category === query.category || p.categories?.includes(query.category!)
-    );
-  }
+  if (query.category) items = items.filter((p) => p.category === query.category);
   if (query.collection) items = items.filter((p) => p.collectionName === query.collection);
   if (query.tag) items = items.filter((p) => p.tags?.includes(query.tag!));
   if (query.badge) items = items.filter((p) => p.badges?.includes(query.badge!));
@@ -165,4 +161,16 @@ export const api = {
 
   collections: () =>
     request<{ collections: string[]; categories: string[] }>("/collections"),
+
+  reviews: {
+    list: (slug: string) =>
+      request<{ items: Review[]; summary: { average: number; count: number } }>("/reviews", {
+        query: { slug },
+      }),
+    create: (body: { slug: string; authorName: string; rating: number; title?: string; body: string }) =>
+      request<{ review: Review; summary: { average: number; count: number } }>("/reviews", {
+        method: "POST",
+        body,
+      }),
+  },
 };

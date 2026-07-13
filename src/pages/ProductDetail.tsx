@@ -3,6 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Product } from "../lib/types";
 import { ProductGallery } from "../components/ProductGallery";
+import { ProductReviews } from "../components/ProductReviews";
+import { StarRating } from "../components/StarRating";
 import { Badge, Button, Spinner } from "../components/ui";
 import { ProductCard } from "../components/ProductCard";
 import { formatINR } from "../lib/format";
@@ -119,6 +121,14 @@ export default function ProductDetail() {
           <h1 className="font-display text-4xl font-bold leading-tight tracking-tightish text-ink md:text-5xl">
             {product.name}
           </h1>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StarRating value={product.rating ?? 5} />
+            {(product.reviewCount ?? 0) > 0 && (
+              <span className="text-sm text-ink/50">
+                {(product.rating ?? 5).toFixed(1)} · {product.reviewCount} reviews
+              </span>
+            )}
+          </div>
           {(product.tagline || product.collectionName) && (
             <p className="mt-2 text-ink/50">
               {product.tagline || `${product.collectionName} collection`}
@@ -211,7 +221,7 @@ export default function ProductDetail() {
             </div>
           )}
 
-          <div className="mt-8 flex items-center gap-3">
+          <div className="mt-8 hidden items-center gap-3 md:flex">
             <div className="flex items-center rounded-full border border-ink/15">
               <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-4 py-2.5 text-ink/60 hover:text-ink">−</button>
               <span className="w-8 text-center font-semibold">{qty}</span>
@@ -245,6 +255,24 @@ export default function ProductDetail() {
           </p>
         </div>
       </div>
+
+      <ProductReviews slug={product.slug} productName={product.name} />
+
+      {/* Mobile sticky add-to-cart */}
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-cream/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
+        <div className="mx-auto flex max-w-lg items-center gap-3">
+          <div className="flex items-center rounded-full border border-ink/15">
+            <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-3 py-2 text-ink/60">−</button>
+            <span className="w-6 text-center text-sm font-semibold">{qty}</span>
+            <button onClick={() => setQty((q) => q + 1)} className="px-3 py-2 text-ink/60">+</button>
+          </div>
+          <Button onClick={onAdd} size="lg" className="min-h-[48px] flex-1">
+            Add · {formatINR(unitPrice * qty)}
+          </Button>
+        </div>
+      </div>
+
+      <div className="h-24 md:hidden" />
 
       {related.length > 0 && (
         <div className="mx-auto mt-20 max-w-7xl px-5 md:px-8">

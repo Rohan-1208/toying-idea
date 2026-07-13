@@ -4,7 +4,7 @@ import { Canvas, useFrame } from "@react-three/fiber";
 import { ScrollControls, Scroll, useScroll, ContactShadows } from "@react-three/drei";
 import { EffectComposer, Bloom, Vignette } from "@react-three/postprocessing";
 import { PALETTE } from "./palette";
-import { SCROLL_PAGES, windowAt, chapterProgress, STOPS } from "./scroll";
+import { SCROLL_PAGES, MOBILE_SCROLL_PAGES, windowAt, chapterProgress, STOPS } from "./scroll";
 import { CameraRig } from "./CameraRig";
 import { ScrollBridge } from "./ScrollBridge";
 import { ToyCity } from "./scenes/ToyCity";
@@ -12,6 +12,7 @@ import { PrinterWorkshop } from "./scenes/PrinterWorkshop";
 import { Gallery } from "./scenes/Gallery";
 import { InfiniteUniverse } from "./scenes/InfiniteUniverse";
 import { Overlay } from "../ui/Overlay";
+import { useDeviceProfile } from "../hooks/useDeviceProfile";
 
 const STAGE = {
   city: 0,
@@ -45,7 +46,6 @@ function Stage({
   );
 }
 
-// Ch1 + Ch2: hero city → print studio dive (scroll-synced, no time-based spin).
 function CityStage() {
   const scroll = useScroll();
   const diveRef = useRef(0);
@@ -66,16 +66,17 @@ function CityStage() {
   );
 }
 
-function Lights() {
+function Lights({ reduced }: { reduced: boolean }) {
+  const shadowSize = reduced ? 1024 : 2048;
   return (
     <>
       <hemisphereLight args={[PALETTE.white, PALETTE.creamDeep, 0.9]} />
       <ambientLight intensity={0.35} />
       <directionalLight
         position={[12, 18, 8]}
-        intensity={1.7}
-        castShadow
-        shadow-mapSize={[2048, 2048]}
+        intensity={reduced ? 1.35 : 1.7}
+        castShadow={!reduced}
+        shadow-mapSize={[shadowSize, shadowSize]}
         shadow-camera-far={80}
         shadow-camera-left={-30}
         shadow-camera-right={30}
@@ -90,35 +91,33 @@ function Lights() {
   );
 }
 
-function World() {
+function World({ reduced }: { reduced: boolean }) {
   return (
     <>
       <CameraRig />
       <ScrollBridge />
-      <Lights />
+      <Lights reduced={reduced} />
 
-      {/* Ch1–2: Hero City + Print Studio Dive */}
       <CityStage />
 
-      {/* Ch3: Precision Print Workshop (45%–70%) */}
       <Stage start={0.42} end={0.72} position={[0, STAGE.workshop, 0]}>
         <PrinterWorkshop />
-        <ContactShadows
-          position={[0, -1.3, 0]}
-          opacity={0.4}
-          scale={22}
-          blur={2.6}
-          far={9}
-          color={PALETTE.clayDeep}
-        />
+        {!reduced && (
+          <ContactShadows
+            position={[0, -1.3, 0]}
+            opacity={0.4}
+            scale={22}
+            blur={2.6}
+            far={9}
+            color={PALETTE.clayDeep}
+          />
+        )}
       </Stage>
 
-      {/* Ch4: Designer Archive (70%–90%) */}
       <Stage start={0.66} end={0.92} position={[0, STAGE.archive, 0]}>
         <Gallery />
       </Stage>
 
-      {/* Ch5: Infinite Horizon (90%–100%) */}
       <Stage start={0.88} end={1.02} fade={0.04} position={[0, STAGE.universe, 0]}>
         <InfiniteUniverse />
       </Stage>
@@ -127,29 +126,35 @@ function World() {
 }
 
 export function Experience() {
+  const { mobile, reducedMotion } = useDeviceProfile();
+  const lite = mobile || reducedMotion;
+  const scrollPages = mobile ? MOBILE_SCROLL_PAGES : SCROLL_PAGES;
+
   return (
     <Canvas
-      shadows
-      dpr={[1, 1.8]}
-      gl={{ antialias: true, powerPreference: "high-performance" }}
-      camera={{ fov: 38, near: 0.1, far: 400, position: [15, 11, 15] }}
+      shadows={!lite}
+      dpr={lite ? [1, 1.15] : [1, 1.8]}
+      gl={{ antialias: !lite, powerPreference: "high-performance" }}
+      camera={{ fov: mobile ? 42 : 38, near: 0.1, far: 400, position: [15, 11, 15] }}
     >
       <color attach="background" args={[PALETTE.cream]} />
-      <fog attach="fog" args={[PALETTE.cream, 34, 135]} />
+      <fog attach="fog" args={[PALETTE.cream, lite ? 28 : 34, lite ? 110 : 135]} />
 
       <Suspense fallback={null}>
-        <ScrollControls pages={SCROLL_PAGES} damping={0.18}>
-          <World />
+        <ScrollControls pages={scrollPages} damping={mobile ? 0.34 : 0.18}>
+          <World reduced={lite} />
           <Scroll html style={{ width: "100%" }}>
-            <Overlay />
+            <Overlay scrollPages={scrollPages} />
           </Scroll>
         </ScrollControls>
       </Suspense>
 
-      <EffectComposer>
-        <Bloom mipmapBlur luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={0.7} />
-        <Vignette eskil={false} offset={0.2} darkness={0.45} />
-      </EffectComposer>
+      {!lite && (
+        <EffectComposer>
+          <Bloom mipmapBlur luminanceThreshold={0.85} luminanceSmoothing={0.2} intensity={0.7} />
+          <Vignette eskil={false} offset={0.2} darkness={0.45} />
+        </EffectComposer>
+      )}
     </Canvas>
   );
 }

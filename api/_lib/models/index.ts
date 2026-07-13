@@ -11,3 +11,4 @@ export {
   INVENTORY_REASONS,
   type InventoryMovementDoc,
 } from "./InventoryMovement.js";
+export { Review, type ReviewDoc } from "./Review.js";

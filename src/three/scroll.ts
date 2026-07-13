@@ -15,6 +15,7 @@ export const STOPS = {
 } as const;
 
 export const SCROLL_PAGES = 7;
+export const MOBILE_SCROLL_PAGES = 5;
 
 export const clamp = (v: number, min = 0, max = 1) =>
   Math.max(min, Math.min(max, v));

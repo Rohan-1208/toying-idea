@@ -15,6 +15,7 @@
     "export:images": "node --env-file=.env scripts/export-gridfs-images.mjs",
     "apply:image-urls": "node --env-file=.env scripts/apply-image-urls.mjs",
     "set:bundle-pricing": "node --env-file=.env scripts/set-bundle-pricing.mjs",
+    "seed:reviews": "node --env-file=.env scripts/seed-reviews.mjs",
     "hash:admin": "node scripts/hash-admin.mjs"
   },
   "dependencies": {

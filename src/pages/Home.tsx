@@ -2,7 +2,6 @@
 import { Experience } from "../three/Experience";
 import { Chrome } from "../ui/Chrome";
 import { Loader } from "../ui/Loader";
-import { CartDrawer } from "../components/CartDrawer";
 
 export default function Home() {
   // Lock body scroll while the 3D scene (with its own scroll container) is mounted.
@@ -16,7 +15,6 @@ export default function Home() {
       <Experience />
       <Chrome />
       <Loader />
-      <CartDrawer />
     </div>
   );
 }

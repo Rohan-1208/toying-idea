@@ -56,6 +56,7 @@ const ProductSchema = new Schema(
     featured: { type: Boolean, default: false, index: true },
     featuredRank: { type: Number, default: null },
     rating: { type: Number, default: 5, min: 0, max: 5 },
+    reviewCount: { type: Number, default: 0, min: 0 },
 
     active: { type: Boolean, default: true, index: true },
   },

@@ -8,40 +8,37 @@ import { Spinner } from "../components/ui";
 
 export default function Collections() {
   const [items, setItems] = useState<Product[]>([]);
-  const [collectionNames, setCollectionNames] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([api.products.list(), api.collections()])
-      .then(([productsRes, collectionsRes]) => {
-        setItems(productsRes.items);
-        setCollectionNames(collectionsRes.collections);
-      })
+    api.products
+      .list()
+      .then((res) => setItems(res.items))
       .finally(() => setLoading(false));
   }, []);
 
   const collections = useMemo(() => {
     const map = new Map<string, Product[]>();
-    for (const name of collectionNames) {
-      const products = items.filter((p) => p.collectionName === name);
-      if (products.length) map.set(name, products);
-    }
     for (const p of items) {
-      const name = p.collectionName?.trim();
-      if (!name || map.has(name)) continue;
-      map.set(name, [p]);
+      const name = p.collectionName;
+      if (!name) continue;
+      
+      const lower = name.toLowerCase();
+      if (lower === "f1" || lower === "valentines") {
+        const groupName = lower === "f1" ? "F1" : "Valentines";
+        if (!map.has(groupName)) map.set(groupName, []);
+        map.get(groupName)!.push(p);
+      }
     }
-    return Array.from(map.entries())
-      .map(([name, products]) => ({ name, products }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-  }, [items, collectionNames]);
+    return Array.from(map.entries()).map(([name, products]) => ({ name, products }));
+  }, [items]);
 
   return (
     <div className="pb-16">
       <PageHeader
         eyebrow="Featured Collections"
         title="Collections"
-        subtitle="Curated drops with a clear story — tap a collection to shop every piece in the series."
+        subtitle="Clear hierarchy, strong rhythm, and merchandising that feels premium."
       />
 
       <div className="mx-auto max-w-7xl px-5 md:px-8">
@@ -49,13 +46,6 @@ export default function Collections() {
           <div className="flex justify-center py-24">
             <Spinner className="h-6 w-6" />
           </div>
-        ) : collections.length === 0 ? (
-          <p className="py-24 text-center text-ink/50">
-            Collections coming soon.{" "}
-            <Link to="/shop" className="font-medium text-clay hover:underline">
-              Browse the shop
-            </Link>
-          </p>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
             {collections.map(({ name, products }) => (
@@ -67,11 +57,11 @@ export default function Collections() {
                 <div className="aspect-[4/3]">
                   <ProductImage product={products[0]} rounded="rounded-none" />
                 </div>
-                <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent transition-opacity group-hover:from-ink/80" />
+                <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent" />
                 <div className="absolute bottom-0 left-0 right-0 p-5">
                   <h3 className="font-display text-2xl font-bold text-cream-50">{name}</h3>
                   <p className="text-sm text-cream-50/80">
-                    {products.length} {products.length === 1 ? "piece" : "pieces"} · Shop collection →
+                    {products.length} {products.length === 1 ? "piece" : "pieces"} →
                   </p>
                 </div>
               </Link>
