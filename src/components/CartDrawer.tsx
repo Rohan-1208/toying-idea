@@ -45,7 +45,7 @@ export function CartDrawer() {
           <>
             <div className="flex-1 space-y-4 overflow-y-auto px-6 py-5">
               {lines.map((l) => (
-                <div key={l.slug} className="flex gap-4">
+                <div key={l.key} className="flex gap-4">
                   <div className="h-20 w-20 shrink-0 overflow-hidden rounded-xl bg-cream-200">
                     {l.image ? (
                       <img src={l.image} alt={l.name} className="h-full w-full object-cover" />
@@ -60,7 +60,7 @@ export function CartDrawer() {
                       <Link to={`/product/${l.slug}`} onClick={() => setOpen(false)} className="font-medium text-ink hover:text-clay">
                         {l.name}
                       </Link>
-                      <button onClick={() => remove(l.slug)} className="text-ink/40 hover:text-clay" aria-label="Remove">
+                      <button onClick={() => remove(l.key)} className="text-ink/40 hover:text-clay" aria-label="Remove">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M3 6h18M19 6l-1 14H6L5 6m5 0V4h4v2" />
                         </svg>
@@ -73,9 +73,9 @@ export function CartDrawer() {
                     )}
                     <div className="mt-auto flex items-center justify-between">
                       <div className="flex items-center rounded-full border border-ink/15">
-                        <button onClick={() => setQty(l.slug, l.qty - 1)} className="px-3 py-1 text-ink/60 hover:text-ink">−</button>
+                        <button onClick={() => setQty(l.key, l.qty - 1)} className="px-3 py-1 text-ink/60 hover:text-ink">−</button>
                         <span className="w-6 text-center text-sm font-semibold">{l.qty}</span>
-                        <button onClick={() => setQty(l.slug, l.qty + 1)} className="px-3 py-1 text-ink/60 hover:text-ink">+</button>
+                        <button onClick={() => setQty(l.key, l.qty + 1)} className="px-3 py-1 text-ink/60 hover:text-ink">+</button>
                       </div>
                       <span className="font-semibold text-ink">{formatINR(l.price * l.qty)}</span>
                     </div>

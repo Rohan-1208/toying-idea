@@ -1,4 +1,5 @@
 import type { Product } from "../lib/types";
+import { normalizeImageUrl } from "../lib/image-url";
 
 const GRADIENTS: [string, string][] = [
   ["#F0913A", "#E8731E"],
@@ -24,7 +25,7 @@ export function ProductImage({
   className?: string;
   rounded?: string;
 }) {
-  const img = product.thumbnail || product.images?.[0];
+  const img = normalizeImageUrl(product.thumbnail || product.images?.[0] || "");
   if (img) {
     return (
       <img

@@ -6,10 +6,17 @@ import { Order, generateOrderNumber, ORDER_STATUSES } from "./_lib/models/Order.
 import { Product } from "./_lib/models/Product.js";
 import { verifyAdmin, isAdminRequest } from "./_lib/auth.js";
 import { recordSaleLines, restoreCancelledOrder } from "./_lib/inventory.js";
+import { resolveVariantLabel, resolveVariantPrice } from "./_lib/product-utils.js";
 import { normalizeEmail, positiveInt, requireString, sanitizeRecord } from "./_lib/validate.js";
 import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from "./_lib/mail.js";
 
-type IncomingItem = { productId?: string; slug?: string; qty: number; options?: unknown };
+type IncomingItem = {
+  productId?: string;
+  slug?: string;
+  qty: number;
+  price?: number;
+  options?: Record<string, string>;
+};
 
 const SHIPPING_FLAT = 99;
 const FREE_SHIPPING_MIN = 1500;
@@ -170,15 +177,21 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
         throw new Error(`Only ${p.stock} left in stock for ${p.name}`);
       }
 
+      const options = sanitizeRecord(i.options) as Record<string, string>;
+      const variantId = options.variantId || "";
+      const unitPrice = resolveVariantPrice(p, variantId);
+      const variantLabel = resolveVariantLabel(p, variantId);
+      const displayName = variantLabel ? `${p.name} — ${variantLabel}` : p.name;
+
       return {
         productId: p._id,
         slug: p.slug,
         sku: p.sku || "",
-        name: p.name,
-        price: p.price,
+        name: displayName,
+        price: unitPrice,
         qty,
         image: p.thumbnail || p.images?.[0] || "",
-        options: sanitizeRecord(i.options),
+        options,
       };
     });
 
@@ -186,28 +199,51 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     const shipping = subtotal >= FREE_SHIPPING_MIN || subtotal === 0 ? 0 : SHIPPING_FLAT;
     const total = subtotal + shipping;
 
-    const order = await Order.create({
-      orderNumber: generateOrderNumber(),
-      customer: { name, email, phone },
-      shippingAddress,
-      items: lineItems,
-      subtotal,
-      shipping,
-      total,
-      paymentMethod,
-      paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
-      notes,
-      statusHistory: [{ status: "pending", note: "Order placed", at: new Date() }],
-    });
+    const session = await mongoose.startSession();
+    let order;
+    try {
+      await session.withTransaction(async () => {
+        for (let attempt = 0; attempt < 5; attempt++) {
+          try {
+            const [created] = await Order.create(
+              [
+                {
+                  orderNumber: generateOrderNumber(),
+                  customer: { name, email, phone },
+                  shippingAddress,
+                  items: lineItems,
+                  subtotal,
+                  shipping,
+                  total,
+                  paymentMethod,
+                  paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
+                  notes,
+                  statusHistory: [{ status: "pending", note: "Order placed", at: new Date() }],
+                },
+              ],
+              { session }
+            );
+            order = created;
+            break;
+          } catch (err) {
+            const code = (err as { code?: number }).code;
+            if (code !== 11000 || attempt === 4) throw err;
+          }
+        }
 
-    await recordSaleLines(
-      lineItems.map((li) => ({ productId: li.productId, qty: li.qty })),
-      order._id,
-      order.orderNumber
-    );
+        await recordSaleLines(
+          lineItems.map((li) => ({ productId: li.productId, qty: li.qty })),
+          order!._id,
+          order!.orderNumber,
+          session
+        );
+      });
+    } finally {
+      await session.endSession();
+    }
 
     // Send confirmation email asynchronously (do not block client response)
-    sendOrderConfirmationEmail(order).catch((err) =>
+    sendOrderConfirmationEmail(order!).catch((err) =>
       console.error("Failed to send order confirmation email:", err)
     );
 

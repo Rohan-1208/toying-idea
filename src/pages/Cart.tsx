@@ -24,7 +24,7 @@ export default function Cart() {
       <div className="mx-auto mt-6 grid max-w-7xl gap-10 px-5 md:grid-cols-[1.7fr_1fr] md:px-8">
         <div className="divide-y divide-ink/10">
           {lines.map((l) => (
-            <div key={l.slug} className="flex gap-4 py-5">
+            <div key={l.key} className="flex gap-4 py-5">
               <div className="h-24 w-24 shrink-0 overflow-hidden rounded-2xl bg-cream-200">
                 {l.image ? (
                   <img src={l.image} alt={l.name} className="h-full w-full object-cover" />
@@ -46,11 +46,11 @@ export default function Cart() {
                 )}
                 <div className="mt-auto flex items-center justify-between">
                   <div className="flex items-center rounded-full border border-ink/15">
-                    <button onClick={() => setQty(l.slug, l.qty - 1)} className="px-3 py-1.5 text-ink/60 hover:text-ink">−</button>
+                    <button onClick={() => setQty(l.key, l.qty - 1)} className="px-3 py-1.5 text-ink/60 hover:text-ink">−</button>
                     <span className="w-8 text-center text-sm font-semibold">{l.qty}</span>
-                    <button onClick={() => setQty(l.slug, l.qty + 1)} className="px-3 py-1.5 text-ink/60 hover:text-ink">+</button>
+                    <button onClick={() => setQty(l.key, l.qty + 1)} className="px-3 py-1.5 text-ink/60 hover:text-ink">+</button>
                   </div>
-                  <button onClick={() => remove(l.slug)} className="text-sm text-ink/50 hover:text-clay">Remove</button>
+                  <button onClick={() => remove(l.key)} className="text-sm text-ink/50 hover:text-clay">Remove</button>
                 </div>
               </div>
             </div>

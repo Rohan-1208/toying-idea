@@ -8,13 +8,18 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
 
   await connectDB();
 
-  const [collections, categories] = await Promise.all([
+  const [collections, legacyCategories, arrayCategories] = await Promise.all([
     Product.distinct("collectionName", { active: true, collectionName: { $nin: ["", null] } }),
     Product.distinct("category", { active: true, category: { $nin: ["", null] } }),
+    Product.distinct("categories", { active: true }),
   ]);
+
+  const categories = [...new Set([...(legacyCategories as string[]), ...(arrayCategories as string[])])]
+    .filter(Boolean)
+    .sort();
 
   res.status(200).json({
     collections: (collections as string[]).filter(Boolean).sort(),
-    categories: (categories as string[]).filter(Boolean).sort(),
+    categories,
   });
 });

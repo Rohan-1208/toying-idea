@@ -12,6 +12,9 @@
     "preview": "vite preview",
     "init:db": "node --env-file=.env scripts/init-db.mjs",
     "check:db": "node --env-file=.env scripts/check-db.mjs",
+    "export:images": "node --env-file=.env scripts/export-gridfs-images.mjs",
+    "apply:image-urls": "node --env-file=.env scripts/apply-image-urls.mjs",
+    "set:bundle-pricing": "node --env-file=.env scripts/set-bundle-pricing.mjs",
     "hash:admin": "node scripts/hash-admin.mjs"
   },
   "dependencies": {

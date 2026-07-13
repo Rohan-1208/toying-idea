@@ -1,4 +1,4 @@
-import type { Types } from "mongoose";
+import type { ClientSession, Types } from "mongoose";
 import { Product } from "./models/Product.js";
 import { InventoryMovement, type INVENTORY_REASONS } from "./models/InventoryMovement.js";
 
@@ -12,29 +12,55 @@ export async function adjustStock(opts: {
   orderNumber?: string;
   note?: string;
   actor?: string;
+  session?: ClientSession;
 }) {
-  const { productId, delta, reason, orderId, orderNumber, note = "", actor = "system" } = opts;
+  const { productId, delta, reason, orderId, orderNumber, note = "", actor = "system", session } = opts;
+  const qty = Math.abs(delta);
+  const isSale = delta < 0;
 
-  const product = await Product.findById(productId);
-  if (!product) throw new Error("Product not found");
+  const filter: Record<string, unknown> = { _id: productId };
+  if (isSale) filter.stock = { $gte: qty };
 
-  const nextStock = Math.max(0, (product.stock ?? 0) + delta);
-  product.stock = nextStock;
-  product.inStock = nextStock > 0;
-  await product.save();
+  const product = await Product.findOneAndUpdate(
+    filter,
+    isSale
+      ? [
+          {
+            $set: {
+              stock: { $subtract: ["$stock", qty] },
+              inStock: { $gt: [{ $subtract: ["$stock", qty] }, 0] },
+            },
+          },
+        ]
+      : {
+          $inc: { stock: qty },
+          $set: { inStock: true },
+        },
+    { new: true, session }
+  );
 
-  await InventoryMovement.create({
-    productId: product._id,
-    slug: product.slug,
-    sku: product.sku || "",
-    delta,
-    stockAfter: nextStock,
-    reason,
-    orderId: orderId || undefined,
-    orderNumber: orderNumber || "",
-    note,
-    actor,
-  });
+  if (!product) {
+    if (isSale) throw new Error("Insufficient stock for one or more items");
+    throw new Error("Product not found");
+  }
+
+  await InventoryMovement.create(
+    [
+      {
+        productId: product._id,
+        slug: product.slug,
+        sku: product.sku || "",
+        delta,
+        stockAfter: product.stock ?? 0,
+        reason,
+        orderId: orderId || undefined,
+        orderNumber: orderNumber || "",
+        note,
+        actor,
+      },
+    ],
+    { session }
+  );
 
   return product;
 }
@@ -42,39 +68,38 @@ export async function adjustStock(opts: {
 export async function recordSaleLines(
   lines: { productId: Types.ObjectId | string; qty: number }[],
   orderId: Types.ObjectId | string,
-  orderNumber: string
+  orderNumber: string,
+  session?: ClientSession
 ) {
-  await Promise.all(
-    lines.map((li) =>
-      adjustStock({
-        productId: li.productId,
-        delta: -li.qty,
-        reason: "sale",
-        orderId,
-        orderNumber,
-        actor: "checkout",
-      })
-    )
-  );
+  for (const li of lines) {
+    await adjustStock({
+      productId: li.productId,
+      delta: -li.qty,
+      reason: "sale",
+      orderId,
+      orderNumber,
+      actor: "checkout",
+      session,
+    });
+  }
 }
 
 export async function restoreCancelledOrder(
   lines: { productId?: Types.ObjectId | string | null; qty: number }[],
   orderId: Types.ObjectId | string,
-  orderNumber: string
+  orderNumber: string,
+  session?: ClientSession
 ) {
-  await Promise.all(
-    lines
-      .filter((li) => li.productId)
-      .map((li) =>
-        adjustStock({
-          productId: li.productId!,
-          delta: li.qty,
-          reason: "cancel",
-          orderId,
-          orderNumber,
-          actor: "order-cancel",
-        })
-      )
-  );
+  for (const li of lines) {
+    if (!li.productId) continue;
+    await adjustStock({
+      productId: li.productId,
+      delta: li.qty,
+      reason: "cancel",
+      orderId,
+      orderNumber,
+      actor: "order-cancel",
+      session,
+    });
+  }
 }

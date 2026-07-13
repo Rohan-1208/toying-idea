@@ -137,9 +137,11 @@ export default function AdminProducts() {
               <Input label="Short description" value={editing.shortDescription || ""} onChange={(e) => set("shortDescription", e.target.value)} />
               <Textarea label="Description" rows={4} value={editing.description || ""} onChange={(e) => set("description", e.target.value)} />
 
-              <Input label="Image URLs (comma separated)" value={fromList(editing.images)} onChange={(e) => set("images", toList(e.target.value))} placeholder="https://… , https://…" />
+              <Input label="Image URLs (comma separated)" value={fromList(editing.images)} onChange={(e) => set("images", toList(e.target.value))} placeholder="Google Drive share link or https://…" />
               <Input label="Thumbnail URL" value={editing.thumbnail || ""} onChange={(e) => set("thumbnail", e.target.value)} />
-              <p className="-mt-2 text-xs text-ink/45">Tip: paste hosted image URLs. (Direct file upload can be added via Cloudinary/S3 later.)</p>
+              <p className="-mt-2 text-xs text-ink/45">
+                Paste Google Drive share links (anyone with link) or other image URLs. Drive links are auto-converted for display.
+              </p>
 
               <div className="grid gap-4 sm:grid-cols-2">
                 <Input label="Tags (comma separated)" value={fromList(editing.tags)} onChange={(e) => set("tags", toList(e.target.value))} />
@@ -154,7 +156,7 @@ export default function AdminProducts() {
                 <Input label="Colors (comma separated)" value={fromList(editing.colors)} onChange={(e) => set("colors", toList(e.target.value))} />
               </div>
 
-              <div className="flex gap-6">
+              <div className="flex flex-wrap gap-6">
                 <label className="flex items-center gap-2 text-sm text-ink/70">
                   <input type="checkbox" checked={!!editing.featured} onChange={(e) => set("featured", e.target.checked)} />
                   Featured
@@ -162,6 +164,14 @@ export default function AdminProducts() {
                 <label className="flex items-center gap-2 text-sm text-ink/70">
                   <input type="checkbox" checked={editing.active !== false} onChange={(e) => set("active", e.target.checked)} />
                   Active (visible in shop)
+                </label>
+                <label className="flex items-center gap-2 text-sm text-ink/70">
+                  <input
+                    type="checkbox"
+                    checked={editing.pricingMode === "bundle"}
+                    onChange={(e) => set("pricingMode", e.target.checked ? "bundle" : "variant")}
+                  />
+                  Bundle pricing (one price for whole collection)
                 </label>
               </div>
 

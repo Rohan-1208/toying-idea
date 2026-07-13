@@ -1,14 +1,29 @@
+export interface ProductVariant {
+  id: string;
+  label: string;
+  material?: string;
+  finish?: string;
+  size?: string;
+  inStock?: boolean;
+  price: { currency: string; amount: number };
+}
+
+/** bundle = single product price (variants list what's included); variant = pick option with its own price */
+export type ProductPricingMode = "bundle" | "variant";
+
 export interface Product {
   _id?: string;
   name: string;
   slug: string;
   sku?: string;
+  tagline?: string;
   description?: string;
   shortDescription?: string;
   price: number;
   compareAtPrice?: number | null;
   currency?: string;
   category?: string;
+  categories?: string[];
   collectionName?: string;
   tags?: string[];
   badges?: string[];
@@ -17,10 +32,13 @@ export interface Product {
   material?: string;
   finishes?: string[];
   colors?: string[];
+  variants?: ProductVariant[];
+  pricingMode?: ProductPricingMode;
   stock?: number;
   lowStockThreshold?: number;
   inStock?: boolean;
   featured?: boolean;
+  featuredRank?: number | null;
   rating?: number;
   active?: boolean;
   createdAt?: string;
@@ -28,6 +46,7 @@ export interface Product {
 }
 
 export interface CartLine {
+  key: string;
   slug: string;
   productId?: string;
   name: string;

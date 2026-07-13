@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { api } from "../lib/api";
 import type { Product } from "../lib/types";
-import { ProductImage } from "../components/ProductImage";
+import { ProductGallery } from "../components/ProductGallery";
 import { Badge, Button, Spinner } from "../components/ui";
 import { ProductCard } from "../components/ProductCard";
 import { formatINR } from "../lib/format";
+import { resolveProductImage, resolveProductPrice, resolveVariant, isBundleProduct, bundleIncludes } from "../lib/cart";
 import { useCart } from "../context/CartContext";
 
 export default function ProductDetail() {
@@ -15,6 +16,7 @@ export default function ProductDetail() {
   const [related, setRelated] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [qty, setQty] = useState(1);
+  const [variantId, setVariantId] = useState("");
   const [finish, setFinish] = useState("");
   const [color, setColor] = useState("");
 
@@ -24,20 +26,38 @@ export default function ProductDetail() {
     setQty(1);
     api.products.get(slug).then((res) => {
       if (!active) return;
-      setProduct(res.product);
-      setFinish(res.product?.finishes?.[0] || "");
-      setColor(res.product?.colors?.[0] || "");
+      const p = res.product;
+      setProduct(p);
+      const variant = p ? resolveVariant(p, "") : undefined;
+      setVariantId(variant?.id || "");
+      setFinish(p?.finishes?.[0] || variant?.finish || "");
+      setColor(p?.colors?.[0] || "");
       setLoading(false);
-      if (res.product) {
+      if (p) {
+        const cat = p.categories?.[0] || p.category;
         api.products
-          .list({ category: res.product.category })
-          .then((r) => active && setRelated(r.items.filter((p) => p.slug !== slug).slice(0, 4)));
+          .list({ category: cat })
+          .then((r) => active && setRelated(r.items.filter((item) => item.slug !== slug).slice(0, 4)));
       }
     });
     return () => {
       active = false;
     };
   }, [slug]);
+
+  const selectedVariant = useMemo(
+    () => (product ? resolveVariant(product, variantId) : undefined),
+    [product, variantId]
+  );
+
+  const unitPrice = product ? resolveProductPrice(product, variantId) : 0;
+  const galleryImages = useMemo(() => {
+    if (!product) return [];
+    const imgs = product.images?.length ? product.images : [];
+    const thumb = product.thumbnail;
+    if (thumb && !imgs.includes(thumb)) return [thumb, ...imgs];
+    return imgs.length ? imgs : thumb ? [thumb] : [];
+  }, [product]);
 
   if (loading) {
     return (
@@ -57,7 +77,15 @@ export default function ProductDetail() {
     );
   }
 
-  const onAdd = () => add(product, qty, { finish, color });
+  const bundle = product ? isBundleProduct(product) : false;
+  const includes = product ? bundleIncludes(product) : [];
+
+  const onAdd = () =>
+    add(product, qty, {
+      ...(bundle ? { bundle: "1" } : { variantId: selectedVariant?.id || "", variantLabel: selectedVariant?.label || "" }),
+      finish,
+      color,
+    });
 
   return (
     <div className="pb-16">
@@ -70,23 +98,16 @@ export default function ProductDetail() {
       </div>
 
       <div className="mx-auto mt-6 grid max-w-7xl gap-10 px-5 md:grid-cols-2 md:px-8">
-        {/* Gallery */}
         <div>
-          <div className="aspect-square overflow-hidden rounded-3xl bg-cream-200">
-            <ProductImage product={product} rounded="rounded-3xl" />
-          </div>
-          {product.images && product.images.length > 1 && (
-            <div className="mt-3 grid grid-cols-4 gap-3">
-              {product.images.slice(0, 4).map((img, i) => (
-                <div key={i} className="aspect-square overflow-hidden rounded-xl bg-cream-200">
-                  <img src={img} alt="" className="h-full w-full object-cover" />
-                </div>
-              ))}
+          {galleryImages.length > 0 ? (
+            <ProductGallery images={galleryImages} alt={product.name} />
+          ) : (
+            <div className="aspect-square overflow-hidden rounded-3xl bg-cream-200">
+              <img src={resolveProductImage(product)} alt={product.name} className="h-full w-full object-cover" />
             </div>
           )}
         </div>
 
-        {/* Info */}
         <div className="md:py-2">
           {product.badges && product.badges.length > 0 && (
             <div className="mb-3 flex flex-wrap gap-1.5">
@@ -98,12 +119,14 @@ export default function ProductDetail() {
           <h1 className="font-display text-4xl font-bold leading-tight tracking-tightish text-ink md:text-5xl">
             {product.name}
           </h1>
-          {product.collectionName && (
-            <p className="mt-2 text-ink/50">{product.collectionName} collection</p>
+          {(product.tagline || product.collectionName) && (
+            <p className="mt-2 text-ink/50">
+              {product.tagline || `${product.collectionName} collection`}
+            </p>
           )}
 
           <div className="mt-5 flex items-baseline gap-3">
-            <span className="font-display text-3xl font-bold text-ink">{formatINR(product.price)}</span>
+            <span className="font-display text-3xl font-bold text-ink">{formatINR(unitPrice)}</span>
             {product.compareAtPrice ? (
               <span className="text-lg text-ink/40 line-through">{formatINR(product.compareAtPrice)}</span>
             ) : null}
@@ -111,8 +134,46 @@ export default function ProductDetail() {
 
           <p className="mt-5 leading-relaxed text-ink/70">{product.description || product.shortDescription}</p>
 
-          {/* Options */}
-          {product.finishes && product.finishes.length > 0 && (
+          {bundle && includes.length > 0 && (
+            <div className="mt-6">
+              <span className="text-sm font-medium text-ink/70">This collection includes</span>
+              <ul className="mt-2 space-y-1.5">
+                {includes.map((item) => (
+                  <li key={item} className="flex items-center gap-2 text-sm text-ink/70">
+                    <span className="h-1.5 w-1.5 rounded-full bg-clay" />
+                    {item}
+                  </li>
+                ))}
+              </ul>
+              <p className="mt-3 text-sm text-ink/50">Sold as one complete collection for {formatINR(product.price)}.</p>
+            </div>
+          )}
+
+          {!bundle && product.variants && product.variants.length > 0 && (
+            <div className="mt-6">
+              <span className="text-sm font-medium text-ink/70">Option</span>
+              <div className="mt-2 flex flex-wrap gap-2">
+                {product.variants
+                  .filter((v) => v.inStock !== false)
+                  .map((v) => (
+                    <button
+                      key={v.id}
+                      onClick={() => setVariantId(v.id)}
+                      className={`rounded-full border px-4 py-1.5 text-sm transition-colors ${
+                        variantId === v.id
+                          ? "border-clay bg-clay/10 text-clay-deep"
+                          : "border-ink/15 text-ink/60 hover:border-ink/30"
+                      }`}
+                    >
+                      {v.label}
+                      <span className="ml-1 text-ink/40">· {formatINR(v.price.amount)}</span>
+                    </button>
+                  ))}
+              </div>
+            </div>
+          )}
+
+          {product.finishes && product.finishes.length > 0 && !product.variants?.length && (
             <div className="mt-6">
               <span className="text-sm font-medium text-ink/70">Finish</span>
               <div className="mt-2 flex flex-wrap gap-2">
@@ -150,7 +211,6 @@ export default function ProductDetail() {
             </div>
           )}
 
-          {/* Qty + add */}
           <div className="mt-8 flex items-center gap-3">
             <div className="flex items-center rounded-full border border-ink/15">
               <button onClick={() => setQty((q) => Math.max(1, q - 1))} className="px-4 py-2.5 text-ink/60 hover:text-ink">−</button>
@@ -158,7 +218,7 @@ export default function ProductDetail() {
               <button onClick={() => setQty((q) => q + 1)} className="px-4 py-2.5 text-ink/60 hover:text-ink">+</button>
             </div>
             <Button onClick={onAdd} size="lg" className="flex-1">
-              Add to cart · {formatINR(product.price * qty)}
+              Add to cart · {formatINR(unitPrice * qty)}
             </Button>
           </div>
 

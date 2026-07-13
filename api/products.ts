@@ -5,6 +5,7 @@ import { connectDB } from "./_lib/db.js";
 import { Product } from "./_lib/models/Product.js";
 import { verifyAdmin, isAdminRequest } from "./_lib/auth.js";
 import { slugify } from "./_lib/slug.js";
+import { categoryFilter } from "./_lib/product-utils.js";
 import { positiveInt, requireString } from "./_lib/validate.js";
 
 function findQuery(id: string) {
@@ -68,26 +69,35 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
 
     const filter: Record<string, unknown> = {};
     if (!all) filter.active = true;
-    if (category) filter.category = category;
+    if (category) Object.assign(filter, categoryFilter(category));
     if (collection) filter.collectionName = collection;
     if (tag) filter.tags = tag;
     if (badge) filter.badges = badge;
     if (featured === "1" || featured === "true") filter.featured = true;
-    if (q) {
-      filter.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { description: { $regex: q, $options: "i" } },
-        { tags: { $regex: q, $options: "i" } },
-      ];
-    }
 
     const lim = Math.min(parseInt(limit, 10) || 60, 200);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * lim;
+    const sortField = sort || "-createdAt";
 
-    const [items, total] = await Promise.all([
-      Product.find(filter).sort(sort).skip(skip).limit(lim).lean(),
-      Product.countDocuments(filter),
-    ]);
+    let items;
+    let total;
+
+    if (q?.trim()) {
+      const textFilter = { ...filter, $text: { $search: q.trim() } };
+      [items, total] = await Promise.all([
+        Product.find(textFilter, { score: { $meta: "textScore" } })
+          .sort({ score: { $meta: "textScore" } })
+          .skip(skip)
+          .limit(lim)
+          .lean(),
+        Product.countDocuments(textFilter),
+      ]);
+    } else {
+      [items, total] = await Promise.all([
+        Product.find(filter).sort(sortField).skip(skip).limit(lim).lean(),
+        Product.countDocuments(filter),
+      ]);
+    }
 
     res.status(200).json({ items, total, page: Number(page), limit: lim });
     return;
