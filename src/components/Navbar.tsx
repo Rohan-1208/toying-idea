@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import { useCart } from "../context/CartContext";
+import { BrandLogo } from "./BrandLogo";
 
 const LINKS = [
   { to: "/shop", label: "Shop" },
@@ -29,17 +30,7 @@ export function Navbar() {
       }`}
     >
       <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-4 md:px-8">
-        <Link to="/" className="flex items-center gap-2">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-cream-50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-              <path d="M3 7l9 5 9-5M12 22V12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span className="font-display text-lg font-bold tracking-tightish text-ink">
-            TOYING<span className="text-clay"> IDEA</span>
-          </span>
-        </Link>
+        <BrandLogo to="/" size="md" />
 
         <nav className="hidden items-center gap-7 text-sm font-medium md:flex">
           {LINKS.map((l) => (

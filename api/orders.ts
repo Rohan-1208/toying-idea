@@ -2,12 +2,10 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import mongoose from "mongoose";
 import { withApi, methodNotAllowed, readBody } from "./_lib/http.js";
 import { connectDB } from "./_lib/db.js";
-import { Order, generateOrderNumber, ORDER_STATUSES } from "./_lib/models/Order.js";
-import { Product } from "./_lib/models/Product.js";
+import { Order, ORDER_STATUSES } from "./_lib/models/Order.js";
 import { verifyAdmin, isAdminRequest } from "./_lib/auth.js";
-import { recordSaleLines, restoreCancelledOrder } from "./_lib/inventory.js";
-import { resolveVariantLabel, resolveVariantPrice } from "./_lib/product-utils.js";
-import { normalizeEmail, positiveInt, requireString, sanitizeRecord } from "./_lib/validate.js";
+import { restoreCancelledOrder } from "./_lib/inventory.js";
+import { createStoreOrder } from "./_lib/create-order.js";
 import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from "./_lib/mail.js";
 
 type IncomingItem = {
@@ -17,9 +15,6 @@ type IncomingItem = {
   price?: number;
   options?: Record<string, string>;
 };
-
-const SHIPPING_FLAT = 99;
-const FREE_SHIPPING_MIN = 1500;
 
 function findQuery(id: string) {
   return mongoose.isValidObjectId(id) ? { _id: id } : { orderNumber: id.toUpperCase() };
@@ -148,102 +143,9 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       notes?: string;
     }>(req);
 
-    const name = requireString(body.customer?.name, "Customer name");
-    const email = normalizeEmail(body.customer?.email);
-    const phone = body.customer?.phone?.trim() || "";
-    const shippingAddress = sanitizeRecord(body.shippingAddress) as Record<string, string>;
-    const items = body.items;
-    const paymentMethod = body.paymentMethod?.trim() || "cod";
-    const notes = body.notes?.trim() || "";
+    const order = await createStoreOrder(body);
 
-    if (!items?.length) throw new Error("Order must contain at least one item");
-
-    const ids = items.map((i) => i.productId).filter(Boolean) as string[];
-    const slugs = items.map((i) => i.slug).filter(Boolean) as string[];
-    const products = await Product.find({
-      active: true,
-      $or: [{ _id: { $in: ids } }, { slug: { $in: slugs } }],
-    }).lean();
-
-    const lineItems = items.map((i) => {
-      const p = products.find(
-        (pr) => String(pr._id) === i.productId || pr.slug === i.slug
-      );
-      if (!p) throw new Error("Invalid or unavailable product in cart");
-      if (p.inStock === false) throw new Error(`${p.name} is out of stock`);
-
-      const qty = positiveInt(i.qty, 1);
-      if (typeof p.stock === "number" && p.stock < qty) {
-        throw new Error(`Only ${p.stock} left in stock for ${p.name}`);
-      }
-
-      const options = sanitizeRecord(i.options) as Record<string, string>;
-      const variantId = options.variantId || "";
-      const unitPrice = resolveVariantPrice(p, variantId);
-      const variantLabel = resolveVariantLabel(p, variantId);
-      const displayName = variantLabel ? `${p.name} — ${variantLabel}` : p.name;
-
-      return {
-        productId: p._id,
-        slug: p.slug,
-        sku: p.sku || "",
-        name: displayName,
-        price: unitPrice,
-        qty,
-        image: p.thumbnail || p.images?.[0] || "",
-        options,
-      };
-    });
-
-    const subtotal = lineItems.reduce((s, li) => s + li.price * li.qty, 0);
-    const shipping = subtotal >= FREE_SHIPPING_MIN || subtotal === 0 ? 0 : SHIPPING_FLAT;
-    const total = subtotal + shipping;
-
-    const session = await mongoose.startSession();
-    let order;
-    try {
-      await session.withTransaction(async () => {
-        for (let attempt = 0; attempt < 5; attempt++) {
-          try {
-            const [created] = await Order.create(
-              [
-                {
-                  orderNumber: generateOrderNumber(),
-                  customer: { name, email, phone },
-                  shippingAddress,
-                  items: lineItems,
-                  subtotal,
-                  shipping,
-                  total,
-                  paymentMethod,
-                  paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
-                  notes,
-                  statusHistory: [{ status: "pending", note: "Order placed", at: new Date() }],
-                },
-              ],
-              { session }
-            );
-            order = created;
-            break;
-          } catch (err) {
-            const code = (err as { code?: number }).code;
-            if (code !== 11000 || attempt === 4) throw err;
-          }
-        }
-
-        await recordSaleLines(
-          lineItems.map((li) => ({ productId: li.productId, qty: li.qty })),
-          order!._id,
-          order!.orderNumber,
-          session
-        );
-      });
-    } finally {
-      await session.endSession();
-    }
-
-    // Send confirmation email asynchronously (do not block client response)
-    sendOrderConfirmationEmail(order!).catch((err) =>
+    sendOrderConfirmationEmail(order).catch((err) =>
       console.error("Failed to send order confirmation email:", err)
     );
 

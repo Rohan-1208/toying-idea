@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
+import { BrandLogo } from "../components/BrandLogo";
 
 // Brand intro overlay — shorter on mobile for faster time-to-content.
 export function Loader() {
@@ -28,14 +29,10 @@ export function Loader() {
       } ${gone ? "opacity-0" : "opacity-100"}`}
       aria-hidden={gone}
     >
-      <div className="flex items-center gap-3">
-        {!reducedMotion && (
-          <span className="h-3 w-3 animate-spin-slow rounded-sm bg-clay" />
-        )}
-        <span className="font-display text-xl font-bold tracking-tightish text-ink md:text-2xl">
-          TOYING<span className="text-clay"> IDEA</span>
-        </span>
-      </div>
+      <BrandLogo to={false} size="lg" showWordmark className="flex-col gap-3 sm:flex-row" />
+      {!reducedMotion && (
+        <span className="mt-4 h-2 w-2 animate-spin-slow rounded-sm bg-clay" aria-hidden />
+      )}
       <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/40">
         {fast ? "Loading" : "Building your world"}
       </p>

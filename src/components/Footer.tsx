@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { BrandLogo } from "./BrandLogo";
 
 const COLS = [
   {
@@ -32,17 +33,7 @@ export function Footer() {
     <footer className="mt-24 border-t border-ink/10 bg-cream-100">
       <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-8">
         <div>
-          <Link to="/" className="flex items-center gap-2">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-cream-50">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-                <path d="M3 7l9 5 9-5M12 22V12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-              </svg>
-            </span>
-            <span className="font-display text-lg font-bold tracking-tightish text-ink">
-              TOYING<span className="text-clay"> IDEA</span>
-            </span>
-          </Link>
+          <BrandLogo to="/" size="md" />
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink/60">
             Premium 3D printed toys built like future collectibles. Upload,
             customize, gift and collect.

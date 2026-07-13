@@ -35,6 +35,7 @@ async function request<T>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
+    signal: AbortSignal.timeout(45_000),
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};

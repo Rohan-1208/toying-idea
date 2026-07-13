@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from "react";
 import { Link } from "react-router-dom";
 import { progressStore } from "./progressStore";
+import { BrandLogo } from "../components/BrandLogo";
 
 import { STOPS } from "../three/scroll";
 
@@ -37,17 +38,7 @@ export function Chrome() {
     <div className="pointer-events-none fixed inset-0 z-20">
       {/* Top bar */}
       <header className="flex items-center justify-between px-6 py-5 md:px-10">
-        <a className="pointer-events-auto flex items-center gap-2" href="#">
-          <span className="grid h-9 w-9 place-items-center rounded-xl bg-ink text-cream-50">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-              <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-              <path d="M3 7l9 5 9-5M12 22V12" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-            </svg>
-          </span>
-          <span className="font-display text-lg font-bold tracking-tightish text-ink">
-            TOYING<span className="text-clay"> IDEA</span>
-          </span>
-        </a>
+        <BrandLogo to="/" size="md" className="pointer-events-auto" />
 
         <nav className="pointer-events-auto hidden items-center gap-7 text-sm font-medium text-ink/70 md:flex">
           <Link className="transition-colors hover:text-ink" to="/shop">Shop</Link>

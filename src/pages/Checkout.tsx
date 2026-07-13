@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../context/CartContext";
 import { api } from "../lib/api";
 import { formatINR } from "../lib/format";
-import { Button, Input } from "../components/ui";
+import { lookupPincode } from "../lib/pincode";
+import { INDIAN_STATES, validateCheckoutForm, normalizeIndianState } from "../lib/checkout-form";
+import { Button, Input, Select, Spinner } from "../components/ui";
 import { PageHeader } from "../components/Layout";
 
 export default function Checkout() {
@@ -29,10 +31,57 @@ export default function Checkout() {
   const [cardDetails, setCardDetails] = useState({ number: "", expiry: "", cvv: "" });
   const [upiId, setUpiId] = useState("");
   const [otp, setOtp] = useState("");
+  const [pinLoading, setPinLoading] = useState(false);
+  const [pinHint, setPinHint] = useState("");
+  const [pinError, setPinError] = useState("");
+  const lastLookupPin = useRef("");
 
   const shipping = subtotal >= 1500 || subtotal === 0 ? 0 : 99;
   const total = subtotal + shipping;
   const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
+
+  const lookupPin = useCallback(async (pin: string) => {
+    const digits = pin.replace(/\D/g, "").slice(0, 6);
+    if (digits.length !== 6 || digits === lastLookupPin.current) return;
+
+    lastLookupPin.current = digits;
+    setPinLoading(true);
+    setPinError("");
+    setPinHint("");
+    try {
+      const result = await lookupPincode(digits);
+      if (!result) {
+        setPinError("PIN not found. Check the code or enter city/state manually.");
+        return;
+      }
+      setForm((f) => ({
+        ...f,
+        pincode: digits,
+        city: result.city,
+        state: normalizeIndianState(result.state),
+      }));
+      setPinHint(
+        result.postOffices.length
+          ? `Serves: ${result.postOffices.slice(0, 3).join(", ")}${result.postOffices.length > 3 ? "…" : ""}`
+          : ""
+      );
+    } catch {
+      setPinError("Could not look up PIN. Enter city and state manually.");
+      lastLookupPin.current = "";
+    } finally {
+      setPinLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    const pin = form.pincode.replace(/\D/g, "");
+    if (pin.length === 6) lookupPin(pin);
+    if (pin.length < 6) {
+      lastLookupPin.current = "";
+      setPinHint("");
+      setPinError("");
+    }
+  }, [form.pincode, lookupPin]);
 
   useEffect(() => {
     if (paymentStep === "processing") {
@@ -63,15 +112,20 @@ export default function Checkout() {
 
   const createActualOrder = async () => {
     setSubmitting(true);
+    setError("");
     try {
       const { order } = await api.orders.create({
-        customer: { name: form.name, email: form.email, phone: form.phone },
+        customer: {
+          name: form.name.trim(),
+          email: form.email.trim(),
+          phone: form.phone.replace(/\D/g, ""),
+        },
         shippingAddress: {
-          line1: form.line1,
-          line2: form.line2,
-          city: form.city,
-          state: form.state,
-          pincode: form.pincode,
+          line1: form.line1.trim(),
+          line2: form.line2.trim(),
+          city: form.city.trim(),
+          state: normalizeIndianState(form.state),
+          pincode: form.pincode.replace(/\D/g, ""),
           country: "India",
         },
         items: lines.map((l) => ({
@@ -87,8 +141,14 @@ export default function Checkout() {
       setPaymentStep("idle");
       navigate("/order-confirmed", { state: { order } });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not place order. Please try again.");
+      const msg = err instanceof Error ? err.message : "Could not place order. Please try again.";
+      setError(
+        msg.includes("aborted") || msg.includes("timeout") || msg.includes("Timeout")
+          ? "The request timed out. Please check your connection and try again — your cart is still saved."
+          : msg
+      );
       setPaymentStep("idle");
+    } finally {
       setSubmitting(false);
     }
   };
@@ -96,8 +156,9 @@ export default function Checkout() {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
-    if (!form.name || !form.email) {
-      setError("Please fill in your name and email.");
+    const validationError = validateCheckoutForm(form);
+    if (validationError) {
+      setError(validationError);
       return;
     }
 
@@ -129,18 +190,78 @@ export default function Checkout() {
             <div className="grid gap-4 sm:grid-cols-2">
               <Input label="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" />
               <Input label="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required autoComplete="email" inputMode="email" />
-              <Input label="Phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value)} className="sm:col-span-2" autoComplete="tel" inputMode="tel" placeholder="10-digit mobile" />
+              <Input label="Phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value.replace(/\D/g, "").slice(0, 10))} className="sm:col-span-2" required autoComplete="tel" inputMode="tel" placeholder="10-digit mobile" pattern="[6-9][0-9]{9}" maxLength={10} />
             </div>
           </section>
 
           <section>
             <h3 className="mb-4 font-display text-lg font-bold text-ink">Shipping address</h3>
             <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Address line 1" value={form.line1} onChange={(e) => set("line1", e.target.value)} className="sm:col-span-2" required autoComplete="address-line1" />
-              <Input label="Address line 2" value={form.line2} onChange={(e) => set("line2", e.target.value)} className="sm:col-span-2" autoComplete="address-line2" />
-              <Input label="City" value={form.city} onChange={(e) => set("city", e.target.value)} required autoComplete="address-level2" />
-              <Input label="State" value={form.state} onChange={(e) => set("state", e.target.value)} required autoComplete="address-level1" />
-              <Input label="PIN code" value={form.pincode} onChange={(e) => set("pincode", e.target.value)} required autoComplete="postal-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} />
+              <div className="sm:col-span-2">
+                <Input
+                  label="PIN code"
+                  value={form.pincode}
+                  onChange={(e) => set("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  required
+                  autoComplete="postal-code"
+                  inputMode="numeric"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  placeholder="6-digit PIN"
+                />
+                {pinLoading && (
+                  <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/50">
+                    <Spinner className="h-3 w-3" /> Looking up your area…
+                  </p>
+                )}
+                {pinHint && !pinLoading && (
+                  <p className="mt-1.5 text-xs text-teal-deep">{pinHint}</p>
+                )}
+                {pinError && !pinLoading && (
+                  <p className="mt-1.5 text-xs text-clay-deep">{pinError}</p>
+                )}
+              </div>
+              <Input
+                label="City / District"
+                value={form.city}
+                onChange={(e) => set("city", e.target.value)}
+                required
+                autoComplete="address-level2"
+              />
+              <Select
+                label="State"
+                value={form.state}
+                onChange={(e) => set("state", e.target.value)}
+                required
+                autoComplete="address-level1"
+              >
+                <option value="">Select state</option>
+                {INDIAN_STATES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+                {form.state && !INDIAN_STATES.includes(form.state as (typeof INDIAN_STATES)[number]) && (
+                  <option value={form.state}>{form.state}</option>
+                )}
+              </Select>
+              <Input
+                label="House / street / building"
+                value={form.line1}
+                onChange={(e) => set("line1", e.target.value)}
+                className="sm:col-span-2"
+                required
+                autoComplete="address-line1"
+                placeholder="Flat 12, Green Park"
+              />
+              <Input
+                label="Landmark / area (optional)"
+                value={form.line2}
+                onChange={(e) => set("line2", e.target.value)}
+                className="sm:col-span-2"
+                autoComplete="address-line2"
+                placeholder="Near metro station"
+              />
             </div>
           </section>
 

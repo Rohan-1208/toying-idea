@@ -67,18 +67,46 @@ export async function adjustStock(opts: {
 
 export async function recordSaleLines(
   lines: { productId: Types.ObjectId | string; qty: number }[],
-  orderId: Types.ObjectId | string,
-  orderNumber: string,
+  orderId?: Types.ObjectId | string,
+  orderNumber?: string,
+  session?: ClientSession
+) {
+  const completed: { productId: Types.ObjectId | string; qty: number }[] = [];
+  try {
+    for (const li of lines) {
+      await adjustStock({
+        productId: li.productId,
+        delta: -li.qty,
+        reason: "sale",
+        orderId,
+        orderNumber: orderNumber || "",
+        actor: "checkout",
+        session,
+      });
+      completed.push(li);
+    }
+  } catch (err) {
+    await restoreSaleLines(completed, orderId, orderNumber);
+    throw err;
+  }
+}
+
+/** Restore stock after a failed checkout (reverse sale lines). */
+export async function restoreSaleLines(
+  lines: { productId: Types.ObjectId | string; qty: number }[],
+  orderId?: Types.ObjectId | string,
+  orderNumber?: string,
   session?: ClientSession
 ) {
   for (const li of lines) {
     await adjustStock({
       productId: li.productId,
-      delta: -li.qty,
-      reason: "sale",
+      delta: li.qty,
+      reason: "cancel",
       orderId,
-      orderNumber,
-      actor: "checkout",
+      orderNumber: orderNumber || "",
+      note: "Checkout rollback",
+      actor: "checkout-rollback",
       session,
     });
   }
