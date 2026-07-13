@@ -49,7 +49,11 @@ async function request<T>(
 function filterSample(query?: Record<string, string | undefined>): Product[] {
   let items = [...fallbackCatalog];
   if (!query) return items;
-  if (query.category) items = items.filter((p) => p.category === query.category);
+  if (query.category) {
+    items = items.filter(
+      (p) => p.category === query.category || p.categories?.includes(query.category!)
+    );
+  }
   if (query.collection) items = items.filter((p) => p.collectionName === query.collection);
   if (query.tag) items = items.filter((p) => p.tags?.includes(query.tag!));
   if (query.badge) items = items.filter((p) => p.badges?.includes(query.badge!));
