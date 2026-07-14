@@ -1,5 +1,11 @@
 import type { Product, Order, Inquiry, InventoryMovement, Review } from "./types";
 import catalog from "../data/products.json";
+import { isShopifyConfigured } from "./shopify/config";
+import {
+  getShopifyProduct,
+  listShopifyCollections,
+  listShopifyProducts,
+} from "./shopify";
 
 const fallbackCatalog = catalog as Product[];
 
@@ -16,7 +22,12 @@ export const auth = {
 
 async function request<T>(
   path: string,
-  opts: { method?: string; body?: unknown; admin?: boolean; query?: Record<string, string | number | boolean | undefined> } = {}
+  opts: {
+    method?: string;
+    body?: unknown;
+    admin?: boolean;
+    query?: Record<string, string | number | boolean | undefined>;
+  } = {}
 ): Promise<T> {
   const { method = "GET", body, admin, query } = opts;
   const url = new URL(`${BASE}${path}`, window.location.origin);
@@ -46,7 +57,6 @@ async function request<T>(
   return data as T;
 }
 
-// ---- Products (public reads fall back to the sample catalog) ----
 function filterSample(query?: Record<string, string | undefined>): Product[] {
   let items = [...fallbackCatalog];
   if (!query) return items;
@@ -70,6 +80,14 @@ function filterSample(query?: Record<string, string | undefined>): Product[] {
 export const api = {
   products: {
     async list(query?: Record<string, string | undefined>): Promise<{ items: Product[]; usingSample: boolean }> {
+      if (isShopifyConfigured()) {
+        try {
+          const items = await listShopifyProducts(query);
+          if (items.length) return { items, usingSample: false };
+        } catch (err) {
+          console.error("Shopify product list failed:", err);
+        }
+      }
       try {
         const data = await request<{ items: Product[] }>("/products", { query });
         if (!data.items?.length) return { items: filterSample(query), usingSample: true };
@@ -79,6 +97,14 @@ export const api = {
       }
     },
     async get(slug: string): Promise<{ product: Product | null; usingSample: boolean }> {
+      if (isShopifyConfigured()) {
+        try {
+          const product = await getShopifyProduct(slug);
+          if (product) return { product, usingSample: false };
+        } catch (err) {
+          console.error("Shopify product get failed:", err);
+        }
+      }
       try {
         const data = await request<{ product: Product }>(`/products/${slug}`);
         return { product: data.product, usingSample: false };
@@ -87,8 +113,8 @@ export const api = {
         return { product, usingSample: true };
       }
     },
-    // admin
-    create: (body: Partial<Product>) => request<{ product: Product }>("/products", { method: "POST", body, admin: true }),
+    create: (body: Partial<Product>) =>
+      request<{ product: Product }>("/products", { method: "POST", body, admin: true }),
     update: (id: string, body: Partial<Product>) =>
       request<{ product: Product }>(`/products/${id}`, { method: "PUT", body, admin: true }),
     remove: (id: string) => request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE", admin: true }),
@@ -96,7 +122,11 @@ export const api = {
   },
 
   orders: {
-    create: (body: unknown) => request<{ order: Order }>("/orders", { method: "POST", body }),
+    /** Deprecated for storefront — checkout goes through Shopify. Kept for legacy admin/track fallback. */
+    create: (_body: unknown) =>
+      Promise.reject(
+        new Error("Checkout is handled by Shopify. Use the cart checkout button instead.")
+      ),
     track: (idOrNumber: string, email: string) =>
       request<{ order: Order }>(`/orders/${idOrNumber}`, { query: { email } }),
     adminList: (query?: Record<string, string | undefined>) =>
@@ -157,11 +187,18 @@ export const api = {
       request<{ product: Product }>("/inventory", { method: "POST", body, admin: true }),
   },
 
-  health: () =>
-    request<{ ok: boolean; db: string; dbError?: string }>("/health"),
+  health: () => request<{ ok: boolean; db: string; dbError?: string }>("/health"),
 
-  collections: () =>
-    request<{ collections: string[]; categories: string[] }>("/collections"),
+  collections: async () => {
+    if (isShopifyConfigured()) {
+      try {
+        return await listShopifyCollections();
+      } catch (err) {
+        console.error("Shopify collections failed:", err);
+      }
+    }
+    return request<{ collections: string[]; categories: string[] }>("/collections");
+  },
 
   reviews: {
     list: (slug: string) =>

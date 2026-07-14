@@ -256,7 +256,12 @@ export default function ProductDetail() {
         </div>
       </div>
 
-      <ProductReviews slug={product.slug} productName={product.name} />
+      <ProductReviews
+        slug={product.slug}
+        productName={product.name}
+        rating={product.rating}
+        reviewCount={product.reviewCount}
+      />
 
       {/* Mobile sticky add-to-cart */}
       <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-cream/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">

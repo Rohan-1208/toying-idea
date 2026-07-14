@@ -16,7 +16,13 @@
     "apply:image-urls": "node --env-file=.env scripts/apply-image-urls.mjs",
     "set:bundle-pricing": "node --env-file=.env scripts/set-bundle-pricing.mjs",
     "seed:reviews": "node --env-file=.env scripts/seed-reviews.mjs",
-    "hash:admin": "node scripts/hash-admin.mjs"
+    "hash:admin": "node scripts/hash-admin.mjs",
+    "shopify:connect": "node --env-file=.env scripts/connect-shopify.mjs",
+    "shopify:setup": "node --env-file=.env scripts/shopify-admin-setup.mjs",
+    "shopify:import": "node --env-file=.env scripts/import-shopify-products.mjs",
+    "shopify:seed": "node --env-file=.env scripts/seed-shopify-via-cli.mjs",
+    "shopify:stock": "node --env-file=.env scripts/shopify-stock-all.mjs",
+    "shopify:publish": "node --env-file=.env scripts/shopify-publish-and-stock.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
@@ -31,6 +37,7 @@
     "three": "^0.184.0"
   },
   "devDependencies": {
+    "@shopify/cli": "^4.5.0",
     "@types/bcryptjs": "^2.4.6",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "^24.13.2",

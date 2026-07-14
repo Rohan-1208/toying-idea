@@ -5,8 +5,7 @@ import { connectDB } from "./_lib/db.js";
 import { Order, ORDER_STATUSES } from "./_lib/models/Order.js";
 import { verifyAdmin, isAdminRequest } from "./_lib/auth.js";
 import { restoreCancelledOrder } from "./_lib/inventory.js";
-import { createStoreOrder } from "./_lib/create-order.js";
-import { sendOrderConfirmationEmail, sendOrderStatusUpdateEmail } from "./_lib/mail.js";
+import { sendOrderStatusUpdateEmail } from "./_lib/mail.js";
 
 type IncomingItem = {
   productId?: string;
@@ -135,23 +134,13 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   }
 
   if (req.method === "POST") {
-    const body = readBody<{
-      customer?: { name?: string; email?: string; phone?: string };
-      shippingAddress?: Record<string, string>;
-      items?: IncomingItem[];
-      paymentMethod?: string;
-      notes?: string;
-    }>(req);
-
-    const order = await createStoreOrder(body);
-
-    sendOrderConfirmationEmail(order).catch((err) =>
-      console.error("Failed to send order confirmation email:", err)
-    );
-
-    res.status(201).json({ order });
+    // Storefront checkout is Shopify-hosted. Mongo order creation is retired.
+    res.status(410).json({
+      error:
+        "Legacy checkout disabled. Place orders through Shopify Checkout from the storefront.",
+    });
     return;
   }
 
-  return methodNotAllowed(res, ["GET", "POST"]);
+  return methodNotAllowed(res, ["GET"]);
 });

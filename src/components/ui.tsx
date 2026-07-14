@@ -6,6 +6,8 @@ type ButtonProps = {
   to?: string;
   href?: string;
   className?: string;
+  target?: string;
+  rel?: string;
 } & React.ButtonHTMLAttributes<HTMLButtonElement>;
 
 const VARIANTS: Record<string, string> = {
@@ -20,10 +22,25 @@ const SIZES: Record<string, string> = {
   lg: "px-8 py-4 text-base",
 };
 
-export function Button({ variant = "primary", size = "md", to, href, className = "", children, ...rest }: ButtonProps) {
+export function Button({
+  variant = "primary",
+  size = "md",
+  to,
+  href,
+  className = "",
+  target,
+  rel,
+  children,
+  ...rest
+}: ButtonProps) {
   const cls = `inline-flex items-center justify-center gap-2 rounded-full font-semibold transition-all hover:-translate-y-0.5 disabled:opacity-50 disabled:hover:translate-y-0 ${VARIANTS[variant]} ${SIZES[size]} ${className}`;
   if (to) return <Link to={to} className={cls}>{children}</Link>;
-  if (href) return <a href={href} className={cls}>{children}</a>;
+  if (href)
+    return (
+      <a href={href} className={cls} target={target} rel={rel}>
+        {children}
+      </a>
+    );
   return (
     <button className={cls} {...rest}>
       {children}

@@ -38,6 +38,18 @@ export default function AdminLayout() {
             TOYING<span className="text-clay"> IDEA</span>
           </span>
         </Link>
+        <div className="mb-4 rounded-xl bg-ink/5 px-3 py-2 text-[11px] leading-snug text-ink/55">
+          Products, orders & payments now live in{" "}
+          <a
+            href="https://admin.shopify.com/store/vercel-store-dec63599"
+            target="_blank"
+            rel="noreferrer"
+            className="font-semibold text-clay-deep underline"
+          >
+            Shopify Admin
+          </a>
+          . This panel is inquiries-only going forward.
+        </div>
         <nav className="flex flex-col gap-1">
           {NAV.map((n) => (
             <NavLink

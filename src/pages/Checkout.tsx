@@ -1,530 +1,132 @@
-import { useState, useEffect, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useCart } from "../context/CartContext";
-import { api } from "../lib/api";
 import { formatINR } from "../lib/format";
-import { lookupPincode } from "../lib/pincode";
-import { INDIAN_STATES, validateCheckoutForm, normalizeIndianState } from "../lib/checkout-form";
-import { Button, Input, Select, Spinner } from "../components/ui";
+import { isShopifyConfigured, shopifyConfig } from "../lib/shopify/config";
+import { Button, Spinner } from "../components/ui";
 import { PageHeader } from "../components/Layout";
 
 export default function Checkout() {
-  const { lines, subtotal, clear } = useCart();
-  const navigate = useNavigate();
+  const { lines, subtotal, clear, beginShopifyCheckout, shopifyReady } = useCart();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
-  const [form, setForm] = useState({
-    name: "",
-    email: "",
-    phone: "",
-    line1: "",
-    line2: "",
-    city: "",
-    state: "",
-    pincode: "",
-    paymentMethod: "cod",
-    notes: "",
-  });
+  const shippingHint = subtotal >= 1500 || subtotal === 0 ? 0 : 99;
 
-  const [paymentStep, setPaymentStep] = useState<"idle" | "input" | "processing" | "verifying" | "success">("idle");
-  const [cardDetails, setCardDetails] = useState({ number: "", expiry: "", cvv: "" });
-  const [upiId, setUpiId] = useState("");
-  const [otp, setOtp] = useState("");
-  const [pinLoading, setPinLoading] = useState(false);
-  const [pinHint, setPinHint] = useState("");
-  const [pinError, setPinError] = useState("");
-  const lastLookupPin = useRef("");
-
-  const shipping = subtotal >= 1500 || subtotal === 0 ? 0 : 99;
-  const total = subtotal + shipping;
-  const set = (k: string, v: string) => setForm((f) => ({ ...f, [k]: v }));
-
-  const lookupPin = useCallback(async (pin: string) => {
-    const digits = pin.replace(/\D/g, "").slice(0, 6);
-    if (digits.length !== 6 || digits === lastLookupPin.current) return;
-
-    lastLookupPin.current = digits;
-    setPinLoading(true);
-    setPinError("");
-    setPinHint("");
-    try {
-      const result = await lookupPincode(digits);
-      if (!result) {
-        setPinError("PIN not found. Check the code or enter city/state manually.");
-        return;
-      }
-      setForm((f) => ({
-        ...f,
-        pincode: digits,
-        city: result.city,
-        state: normalizeIndianState(result.state),
-      }));
-      setPinHint(
-        result.postOffices.length
-          ? `Serves: ${result.postOffices.slice(0, 3).join(", ")}${result.postOffices.length > 3 ? "…" : ""}`
-          : ""
-      );
-    } catch {
-      setPinError("Could not look up PIN. Enter city and state manually.");
-      lastLookupPin.current = "";
-    } finally {
-      setPinLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const pin = form.pincode.replace(/\D/g, "");
-    if (pin.length === 6) lookupPin(pin);
-    if (pin.length < 6) {
-      lastLookupPin.current = "";
-      setPinHint("");
-      setPinError("");
-    }
-  }, [form.pincode, lookupPin]);
-
-  useEffect(() => {
-    if (paymentStep === "processing") {
-      const timer = setTimeout(() => {
-        setPaymentStep("verifying");
-      }, 1800);
-      return () => clearTimeout(timer);
-    }
-  }, [paymentStep]);
-
-  useEffect(() => {
-    if (paymentStep === "success") {
-      const timer = setTimeout(() => {
-        createActualOrder();
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [paymentStep]);
-
-  if (lines.length === 0 && !submitting) {
-    return (
-      <div className="mx-auto max-w-3xl px-5 py-32 text-center">
-        <h1 className="font-display text-3xl font-bold text-ink">Nothing to check out</h1>
-        <Button to="/shop" className="mt-6">Browse the collection</Button>
-      </div>
-    );
-  }
-
-  const createActualOrder = async () => {
-    setSubmitting(true);
+  const goToShopifyCheckout = async () => {
     setError("");
+    setSubmitting(true);
     try {
-      const { order } = await api.orders.create({
-        customer: {
-          name: form.name.trim(),
-          email: form.email.trim(),
-          phone: form.phone.replace(/\D/g, ""),
-        },
-        shippingAddress: {
-          line1: form.line1.trim(),
-          line2: form.line2.trim(),
-          city: form.city.trim(),
-          state: normalizeIndianState(form.state),
-          pincode: form.pincode.replace(/\D/g, ""),
-          country: "India",
-        },
-        items: lines.map((l) => ({
-          productId: l.productId,
-          slug: l.slug,
-          qty: l.qty,
-          options: l.options,
-        })),
-        paymentMethod: form.paymentMethod,
-        notes: form.notes,
-      });
+      const checkoutUrl = await beginShopifyCheckout();
+      // Clear local cart once we hand off — Shopify owns the cart from here.
       clear();
-      setPaymentStep("idle");
-      navigate("/order-confirmed", { state: { order } });
+      window.location.assign(checkoutUrl);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : "Could not place order. Please try again.";
-      setError(
-        msg.includes("aborted") || msg.includes("timeout") || msg.includes("Timeout")
-          ? "The request timed out. Please check your connection and try again — your cart is still saved."
-          : msg
-      );
-      setPaymentStep("idle");
-    } finally {
+      setError(err instanceof Error ? err.message : "Could not start Shopify checkout.");
       setSubmitting(false);
     }
   };
 
-  const submit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    const validationError = validateCheckoutForm(form);
-    if (validationError) {
-      setError(validationError);
-      return;
-    }
-
-    if (form.paymentMethod !== "cod") {
-      setPaymentStep("input");
-      return;
-    }
-
-    await createActualOrder();
-  };
-
-  const handlePaymentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPaymentStep("processing");
-  };
-
-  const handleOtpSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setPaymentStep("success");
-  };
+  if (!lines.length && !submitting) {
+    return (
+      <div className="mx-auto max-w-lg px-5 py-24 text-center">
+        <h1 className="font-display text-3xl font-bold text-ink">Your cart is empty</h1>
+        <p className="mt-3 text-ink/60">Add something from the shop, then checkout securely with Shopify.</p>
+        <Button to="/shop" className="mt-8">
+          Browse shop
+        </Button>
+      </div>
+    );
+  }
 
   return (
-    <div className="relative pb-28 md:pb-16">
-      <PageHeader eyebrow="Checkout" title="Almost yours" />
-      <form id="checkout-form" onSubmit={submit} className="mx-auto mt-6 grid max-w-7xl gap-10 px-5 md:grid-cols-[1.6fr_1fr] md:px-8">
-        <div className="space-y-8">
-          <section>
-            <h3 className="mb-4 font-display text-lg font-bold text-ink">Contact</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Input label="Full name" value={form.name} onChange={(e) => set("name", e.target.value)} required autoComplete="name" />
-              <Input label="Email" type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required autoComplete="email" inputMode="email" />
-              <Input label="Phone" type="tel" value={form.phone} onChange={(e) => set("phone", e.target.value.replace(/\D/g, "").slice(0, 10))} className="sm:col-span-2" required autoComplete="tel" inputMode="tel" placeholder="10-digit mobile" pattern="[6-9][0-9]{9}" maxLength={10} />
-            </div>
-          </section>
+    <div className="pb-28 md:pb-16">
+      <PageHeader
+        eyebrow="Checkout"
+        title="Secure checkout"
+        subtitle="Review your bag, then continue to Shopify for address, shipping, payments (including COD), and order email."
+      />
 
-          <section>
-            <h3 className="mb-4 font-display text-lg font-bold text-ink">Shipping address</h3>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Input
-                  label="PIN code"
-                  value={form.pincode}
-                  onChange={(e) => set("pincode", e.target.value.replace(/\D/g, "").slice(0, 6))}
-                  required
-                  autoComplete="postal-code"
-                  inputMode="numeric"
-                  pattern="[0-9]{6}"
-                  maxLength={6}
-                  placeholder="6-digit PIN"
-                />
-                {pinLoading && (
-                  <p className="mt-1.5 flex items-center gap-2 text-xs text-ink/50">
-                    <Spinner className="h-3 w-3" /> Looking up your area…
-                  </p>
-                )}
-                {pinHint && !pinLoading && (
-                  <p className="mt-1.5 text-xs text-teal-deep">{pinHint}</p>
-                )}
-                {pinError && !pinLoading && (
-                  <p className="mt-1.5 text-xs text-clay-deep">{pinError}</p>
-                )}
-              </div>
-              <Input
-                label="City / District"
-                value={form.city}
-                onChange={(e) => set("city", e.target.value)}
-                required
-                autoComplete="address-level2"
-              />
-              <Select
-                label="State"
-                value={form.state}
-                onChange={(e) => set("state", e.target.value)}
-                required
-                autoComplete="address-level1"
-              >
-                <option value="">Select state</option>
-                {INDIAN_STATES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-                {form.state && !INDIAN_STATES.includes(form.state as (typeof INDIAN_STATES)[number]) && (
-                  <option value={form.state}>{form.state}</option>
-                )}
-              </Select>
-              <Input
-                label="House / street / building"
-                value={form.line1}
-                onChange={(e) => set("line1", e.target.value)}
-                className="sm:col-span-2"
-                required
-                autoComplete="address-line1"
-                placeholder="Flat 12, Green Park"
-              />
-              <Input
-                label="Landmark / area (optional)"
-                value={form.line2}
-                onChange={(e) => set("line2", e.target.value)}
-                className="sm:col-span-2"
-                autoComplete="address-line2"
-                placeholder="Near metro station"
-              />
-            </div>
-          </section>
-
-          <section>
-            <h3 className="mb-4 font-display text-lg font-bold text-ink">Payment</h3>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {[
-                { id: "cod", label: "Cash on delivery", hint: "Pay when it arrives" },
-                { id: "upi", label: "UPI", hint: "GPay, PhonePe, Paytm" },
-                { id: "card", label: "Card", hint: "Debit / credit" },
-                { id: "bank", label: "Bank transfer", hint: "NEFT / IMPS" },
-              ].map((m) => (
-                <button
-                  key={m.id}
-                  type="button"
-                  onClick={() => set("paymentMethod", m.id)}
-                  className={`rounded-2xl border p-4 text-left transition-colors ${
-                    form.paymentMethod === m.id
-                      ? "border-clay bg-clay/10"
-                      : "border-ink/15 bg-white/50 hover:border-ink/25"
-                  }`}
-                >
-                  <p className="font-semibold text-ink">{m.label}</p>
-                  <p className="mt-0.5 text-xs text-ink/50">{m.hint}</p>
-                </button>
-              ))}
-            </div>
-            {form.paymentMethod !== "cod" && (
-              <p className="mt-3 text-xs text-ink/50">Online payments use a secure sandbox for now.</p>
-            )}
-          </section>
-        </div>
-
-        <aside className="h-fit rounded-3xl border border-ink/10 bg-cream-100 p-6 md:sticky md:top-24">
-          <h3 className="font-display text-xl font-bold text-ink">Order summary</h3>
-          <div className="mt-4 max-h-48 space-y-3 overflow-y-auto md:max-h-none">
+      <div className="mx-auto grid max-w-5xl gap-8 px-5 md:grid-cols-[1.2fr_0.8fr] md:px-8">
+        <section className="rounded-3xl border border-ink/10 bg-cream-100/80 p-6">
+          <h2 className="font-display text-lg font-bold text-ink">Your items</h2>
+          <ul className="mt-4 divide-y divide-ink/10">
             {lines.map((l) => (
-              <div key={l.key} className="flex justify-between gap-3 text-sm">
-                <span className="min-w-0 text-ink/70">
-                  {l.name} <span className="text-ink/40">× {l.qty}</span>
-                </span>
-                <span className="shrink-0 font-medium text-ink">{formatINR(l.price * l.qty)}</span>
-              </div>
+              <li key={l.key} className="flex gap-4 py-4">
+                {l.image ? (
+                  <img src={l.image} alt="" className="h-16 w-16 rounded-xl object-cover" />
+                ) : (
+                  <div className="h-16 w-16 rounded-xl bg-cream-200" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium text-ink">{l.name}</p>
+                  <p className="text-sm text-ink/50">Qty {l.qty}</p>
+                </div>
+                <p className="font-medium text-ink">{formatINR(l.price * l.qty)}</p>
+              </li>
             ))}
-          </div>
-          <div className="mt-4 space-y-2 border-t border-ink/10 pt-4 text-sm">
+          </ul>
+
+          {!shopifyReady && (
+            <p className="mt-4 rounded-xl bg-clay/10 px-4 py-3 text-sm text-clay-deep">
+              Shopify Storefront credentials are not configured. Add{" "}
+              <code className="text-xs">VITE_SHOPIFY_STORE_DOMAIN</code> and{" "}
+              <code className="text-xs">VITE_SHOPIFY_STOREFRONT_TOKEN</code> to enable checkout.
+            </p>
+          )}
+
+          {shopifyReady && (
+            <p className="mt-4 text-sm text-ink/55">
+              You will complete address, PIN, state, shipping rates, COD/UPI/card, and receive confirmation
+              email on{" "}
+              <span className="font-medium text-ink">{shopifyConfig.domain}</span>.
+            </p>
+          )}
+        </section>
+
+        <aside className="h-fit rounded-3xl border border-ink/10 bg-white/70 p-6 shadow-sm">
+          <h2 className="font-display text-lg font-bold text-ink">Order summary</h2>
+          <div className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between text-ink/70">
               <span>Subtotal</span>
               <span>{formatINR(subtotal)}</span>
             </div>
             <div className="flex justify-between text-ink/70">
               <span>Shipping</span>
-              <span>{shipping === 0 ? "Free" : formatINR(shipping)}</span>
+              <span>
+                {shippingHint === 0 ? "Calculated at checkout (often free ≥ ₹1500)" : `From ~${formatINR(shippingHint)}`}
+              </span>
             </div>
-            {subtotal > 0 && subtotal < 1500 && (
-              <p className="text-xs text-clay-deep">Add {formatINR(1500 - subtotal)} more for free shipping</p>
-            )}
-            <div className="flex justify-between border-t border-ink/10 pt-2">
-              <span className="font-semibold text-ink">Total</span>
-              <span className="font-display text-xl font-bold text-ink">{formatINR(total)}</span>
+            <div className="flex justify-between border-t border-ink/10 pt-3 font-display text-lg font-bold text-ink">
+              <span>Estimated</span>
+              <span>{formatINR(subtotal + shippingHint)}</span>
             </div>
           </div>
 
-          {error && <p className="mt-4 rounded-xl bg-clay/10 px-3 py-2 text-sm text-clay-deep">{error}</p>}
+          {error && <p className="mt-4 rounded-xl bg-clay/10 px-4 py-3 text-sm text-clay-deep">{error}</p>}
 
-          <Button size="lg" className="mt-5 hidden w-full md:inline-flex">
-            {submitting ? "Processing…" : form.paymentMethod === "cod" ? "Place order" : "Proceed to Payment"}
+          <Button
+            className="mt-6 w-full"
+            disabled={submitting || !isShopifyConfigured() || !lines.length}
+            onClick={goToShopifyCheckout}
+          >
+            {submitting ? (
+              <span className="inline-flex items-center gap-2">
+                <Spinner className="h-4 w-4" /> Redirecting…
+              </span>
+            ) : (
+              "Continue to Shopify Checkout"
+            )}
           </Button>
-          <p className="mt-3 hidden text-center text-xs text-ink/45 md:block">
-            You'll receive an order number to track your build.
+
+          <p className="mt-3 text-center text-xs text-ink/45">
+            Payments, shipping, and order emails are handled by Shopify.{" "}
+            <Link to="/cart" className="underline hover:text-ink">
+              Edit cart
+            </Link>
           </p>
         </aside>
-      </form>
-
-      {/* Mobile sticky checkout bar */}
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-ink/10 bg-cream/95 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-md md:hidden">
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <p className="text-xs text-ink/50">Total</p>
-            <p className="font-display text-xl font-bold text-ink">{formatINR(total)}</p>
-          </div>
-          <Button
-            type="submit"
-            form="checkout-form"
-            size="lg"
-            className="min-h-[48px] min-w-[10rem] flex-1"
-            disabled={submitting}
-          >
-            {submitting ? "Processing…" : form.paymentMethod === "cod" ? "Place order" : "Pay now"}
-          </Button>
-        </div>
       </div>
-
-      {/* Payment Overlay Modal */}
-      {paymentStep !== "idle" && (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-ink/75 p-0 backdrop-blur-sm animate-fade-in md:items-center md:p-5">
-          <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-3xl border border-ink/10 bg-cream-50 shadow-2xl animate-slide-up md:rounded-3xl md:animate-scale-in">
-            
-            {/* Step: Input Card/UPI details */}
-            {paymentStep === "input" && (
-              <form onSubmit={handlePaymentSubmit} className="p-8">
-                <div className="flex justify-between items-center mb-6">
-                  <h4 className="font-display text-xl font-bold text-ink">Secure Payment</h4>
-                  <button 
-                    type="button" 
-                    onClick={() => setPaymentStep("idle")} 
-                    className="text-ink/40 hover:text-ink text-sm font-semibold"
-                  >
-                    Cancel
-                  </button>
-                </div>
-
-                <p className="mb-6 text-sm text-ink/60">
-                  Paying <strong className="text-ink">{formatINR(total)}</strong> to <span className="text-clay font-semibold">Toying Idea</span>
-                </p>
-
-                {form.paymentMethod === "card" && (
-                  <div className="space-y-4">
-                    <Input 
-                      label="Card Number" 
-                      placeholder="4111 2222 3333 4444" 
-                      value={cardDetails.number}
-                      onChange={(e) => setCardDetails({ ...cardDetails, number: e.target.value })}
-                      required 
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                      <Input 
-                        label="Expiry Date" 
-                        placeholder="MM/YY" 
-                        value={cardDetails.expiry}
-                        onChange={(e) => setCardDetails({ ...cardDetails, expiry: e.target.value })}
-                        required 
-                      />
-                      <Input 
-                        label="CVV" 
-                        type="password" 
-                        placeholder="•••" 
-                        maxLength={3}
-                        value={cardDetails.cvv}
-                        onChange={(e) => setCardDetails({ ...cardDetails, cvv: e.target.value })}
-                        required 
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {form.paymentMethod === "upi" && (
-                  <div className="space-y-6">
-                    <Input 
-                      label="UPI ID" 
-                      placeholder="username@upi" 
-                      value={upiId}
-                      onChange={(e) => setUpiId(e.target.value)}
-                      required 
-                    />
-                    
-                    <div className="flex flex-col items-center justify-center border border-ink/10 rounded-2xl bg-white p-4">
-                      <p className="text-xs text-ink/45 mb-2">Or scan QR Code to Pay</p>
-                      <div className="h-36 w-36 bg-ink/5 flex items-center justify-center rounded-xl border border-dashed border-ink/20">
-                        {/* simulated QR code */}
-                        <svg width="100" height="100" viewBox="0 0 100 100" className="opacity-80">
-                          <path d="M0,0h40v40H0V0z M10,10v20h20V10H10z M60,0h40v40H60V0z M70,10v20h20V10H70z M0,60h40v40H0V60z M10,70v20h20V70H10z M60,60h10v10H60V60z M70,70h10v10H70V70z M80,80h10v10H80V80z M90,90h10v10H90V90z M60,80h10v10H60V80z M80,60h20v10H80V60z" fill="currentColor"/>
-                        </svg>
-                      </div>
-                      <span className="text-[10px] text-teal-deep bg-teal/10 px-2 py-0.5 rounded-full mt-2 font-medium">Sandbox Mode Active</span>
-                    </div>
-                  </div>
-                )}
-
-                {form.paymentMethod === "bank" && (
-                  <div className="space-y-4">
-                    <div className="rounded-2xl border border-ink/10 bg-white p-4 text-sm space-y-2">
-                      <div className="flex justify-between"><span className="text-ink/50">Bank:</span><span className="font-semibold">HDFC Bank Ltd</span></div>
-                      <div className="flex justify-between"><span className="text-ink/50">Account Name:</span><span className="font-semibold">Toying Idea Pvt Ltd</span></div>
-                      <div className="flex justify-between"><span className="text-ink/50">Account No:</span><span className="font-semibold">50200048120349</span></div>
-                      <div className="flex justify-between"><span className="text-ink/50">IFSC Code:</span><span className="font-semibold">HDFC0000128</span></div>
-                    </div>
-                    <p className="text-xs text-ink/50 italic">
-                      Verify these transfer details and click below to simulate the transaction.
-                    </p>
-                  </div>
-                )}
-
-                <Button size="lg" className="mt-6 w-full">
-                  Pay {formatINR(total)}
-                </Button>
-              </form>
-            )}
-
-            {/* Step: Processing */}
-            {paymentStep === "processing" && (
-              <div className="p-12 text-center space-y-6">
-                <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-ink/10 border-t-clay" />
-                <div>
-                  <h4 className="font-display text-lg font-bold text-ink">Authorizing Transaction</h4>
-                  <p className="mt-1 text-sm text-ink/50">Connecting to secure gateway. Please do not close or refresh this page...</p>
-                </div>
-              </div>
-            )}
-
-            {/* Step: Verifying */}
-            {paymentStep === "verifying" && (
-              <div className="p-8">
-                {form.paymentMethod === "card" ? (
-                  <form onSubmit={handleOtpSubmit} className="space-y-4">
-                    <h4 className="font-display text-xl font-bold text-ink mb-2">Enter OTP</h4>
-                    <p className="text-sm text-ink/60">
-                      We've sent a simulated 6-digit OTP code to your registered mobile number for authentication.
-                    </p>
-                    <Input 
-                      label="One-Time Password (OTP)" 
-                      placeholder="123456" 
-                      maxLength={6}
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value)}
-                      required 
-                    />
-                    <Button size="lg" className="w-full">
-                      Verify & Approve
-                    </Button>
-                  </form>
-                ) : (
-                  <div className="p-4 text-center space-y-6">
-                    <div className="mx-auto h-12 w-12 animate-pulse rounded-full bg-teal/15 flex items-center justify-center text-teal-deep">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                        <rect x="5" y="2" width="14" height="20" rx="2" />
-                        <line x1="12" y1="18" x2="12" y2="18" />
-                      </svg>
-                    </div>
-                    <div>
-                      <h4 className="font-display text-lg font-bold text-ink">Awaiting Push Approval</h4>
-                      <p className="mt-1 text-sm text-ink/50">
-                        {form.paymentMethod === "upi" 
-                          ? `Please open your UPI app and approve the request for ${formatINR(total)}.` 
-                          : "Simulating bank confirmation check. This will take a moment..."}
-                      </p>
-                    </div>
-                    <Button onClick={() => setPaymentStep("success")} variant="dark" size="sm" className="mt-2">
-                      Simulate Approval
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Step: Success */}
-            {paymentStep === "success" && (
-              <div className="p-12 text-center space-y-6">
-                <div className="mx-auto grid h-16 w-16 place-items-center rounded-full bg-teal/15 text-teal-deep">
-                  <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="animate-scale-in">
-                    <path d="M20 6 9 17l-5-5" />
-                  </svg>
-                </div>
-                <div>
-                  <h4 className="font-display text-xl font-bold text-ink">Payment Successful</h4>
-                  <p className="mt-1 text-sm text-ink/50">Your transaction has been approved. Finalizing your order...</p>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-      )}
     </div>
   );
 }
