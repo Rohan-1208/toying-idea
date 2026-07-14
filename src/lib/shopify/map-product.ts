@@ -70,7 +70,15 @@ function mapVariant(v: ShopifyVariantNode): ProductVariant {
 
 export function mapShopifyProduct(node: ShopifyProductNode): Product {
   const pricingMode = detectPricingMode(node);
-  const variants = node.variants.nodes.map(mapVariant);
+  const mappedVariants = node.variants.nodes.map(mapVariant);
+  // Bundles still need at least one Shopify variant GID for checkout (Default Title → "Standard").
+  const variants =
+    pricingMode === "bundle"
+      ? (() => {
+          const extras = mappedVariants.filter((v) => v.label !== "Standard");
+          return extras.length ? extras : mappedVariants;
+        })()
+      : mappedVariants;
   const images = [
     ...(node.featuredImage?.url ? [node.featuredImage.url] : []),
     ...(node.images?.nodes?.map((i) => i.url) || []),
@@ -88,6 +96,7 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
 
   const compareAt = moneyAmount(node.compareAtPriceRange?.minVariantPrice);
   const minPrice = moneyAmount(node.priceRange.minVariantPrice);
+  const primaryVariantId = node.variants.nodes[0]?.id;
 
   return {
     _id: node.id,
@@ -96,7 +105,7 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     sku: node.variants.nodes[0]?.sku || undefined,
     description: node.description || undefined,
     shortDescription: node.description?.slice(0, 160) || undefined,
-    price: pricingMode === "bundle" ? minPrice : minPrice,
+    price: minPrice,
     compareAtPrice: compareAt > minPrice ? compareAt : null,
     currency: node.priceRange.minVariantPrice.currencyCode || "INR",
     category,
@@ -108,8 +117,10 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     ),
     images,
     thumbnail: images[0],
-    variants: pricingMode === "bundle" ? variants.filter((v) => v.label !== "Standard") : variants,
+    variants,
     pricingMode,
+    // Prefer the primary Shopify variant for add-to-cart when options omit variantId (bundles).
+    ...(primaryVariantId ? { shopifyMerchandiseId: primaryVariantId } : {}),
     inStock: node.availableForSale,
     stock: node.availableForSale ? 99 : 0,
     featured: node.tags?.some((t) => t.toLowerCase() === "featured") || false,

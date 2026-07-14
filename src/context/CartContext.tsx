@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { CartLine, Product } from "../lib/types";
 import { cartLineKey, resolveProductImage, resolveProductPrice, resolveVariant } from "../lib/cart";
 import { isShopifyConfigured } from "../lib/shopify/config";
-import { checkoutFromMerchandise } from "../lib/shopify";
+import { checkoutFromMerchandise, getShopifyProduct } from "../lib/shopify";
 
 const STORAGE_KEY = "ti_cart_v2";
 const CART_ID_KEY = "ti_shopify_cart_id";
@@ -20,11 +20,28 @@ function migrateLines(raw: unknown): CartLine[] {
 
 function merchandiseIdForLine(product: Product, options?: Record<string, string>): string | undefined {
   if (options?.variantId?.startsWith("gid://")) return options.variantId;
+  if (product.shopifyMerchandiseId?.startsWith("gid://")) return product.shopifyMerchandiseId;
   const variant = resolveVariant(product, options?.variantId);
   if (variant?.id?.startsWith("gid://")) return variant.id;
-  // Bundle / single-variant Shopify products: first (and often only) variant GID on product._id of variants
   const first = product.variants?.find((v) => v.id?.startsWith("gid://"));
   return first?.id;
+}
+
+async function resolveMerchandiseId(line: CartLine): Promise<string | null> {
+  const existing = line.options?.variantId;
+  if (existing?.startsWith("gid://")) return existing;
+
+  try {
+    const product = await getShopifyProduct(line.slug);
+    if (!product) return null;
+    return (
+      product.shopifyMerchandiseId ||
+      product.variants?.find((v) => v.id?.startsWith("gid://"))?.id ||
+      null
+    );
+  } catch {
+    return null;
+  }
 }
 
 interface CartContextValue {
@@ -37,7 +54,6 @@ interface CartContextValue {
   clear: () => void;
   isOpen: boolean;
   setOpen: (open: boolean) => void;
-  /** Create a Shopify cart and return hosted checkout URL (requires Shopify env). */
   beginShopifyCheckout: () => Promise<string>;
   shopifyReady: boolean;
 }
@@ -112,20 +128,32 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
     const beginShopifyCheckout: CartContextValue["beginShopifyCheckout"] = async () => {
       if (!shopifyReady) {
-        throw new Error("Shopify is not configured on this environment.");
+        throw new Error("Checkout is not configured yet. Please try again shortly.");
       }
-      const merchandiseLines = lines
-        .map((l) => ({
-          merchandiseId: l.options?.variantId || "",
-          quantity: l.qty,
-        }))
-        .filter((l) => l.merchandiseId.startsWith("gid://"));
+      if (!lines.length) {
+        throw new Error("Your cart is empty.");
+      }
 
-      if (!merchandiseLines.length) {
-        throw new Error(
-          "This cart has no Shopify variant IDs. Refresh products from Shopify and add items again."
-        );
+      const merchandiseLines: Array<{ merchandiseId: string; quantity: number }> = [];
+      const resolvedByKey: Record<string, string> = {};
+
+      for (const line of lines) {
+        const merchandiseId = await resolveMerchandiseId(line);
+        if (!merchandiseId) {
+          throw new Error(
+            `Could not check out “${line.name}”. Remove it, open the product again, and add it to cart.`
+          );
+        }
+        merchandiseLines.push({ merchandiseId, quantity: line.qty });
+        resolvedByKey[line.key] = merchandiseId;
       }
+
+      setLines((prev) =>
+        prev.map((l) => {
+          const id = resolvedByKey[l.key];
+          return id ? { ...l, options: { ...l.options, variantId: id } } : l;
+        })
+      );
 
       const { cartId, checkoutUrl } = await checkoutFromMerchandise(merchandiseLines);
       localStorage.setItem(CART_ID_KEY, cartId);

@@ -34,6 +34,8 @@ export interface Product {
   colors?: string[];
   variants?: ProductVariant[];
   pricingMode?: ProductPricingMode;
+  /** Shopify ProductVariant GID used at checkout (especially for single-SKU / bundle products). */
+  shopifyMerchandiseId?: string;
   stock?: number;
   lowStockThreshold?: number;
   inStock?: boolean;
