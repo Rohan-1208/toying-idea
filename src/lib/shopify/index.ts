@@ -170,12 +170,29 @@ export async function removeCartLines(cartId: string, lineIds: string[]): Promis
   return data.cartLinesRemove.cart;
 }
 
-/** Rebuild a Shopify cart from local lines and return the checkout URL. */
+/** Rebuild a Shopify cart from local lines and return the hosted checkout URL. */
 export async function checkoutFromMerchandise(
   lines: Array<{ merchandiseId: string; quantity: number }>
 ): Promise<{ cartId: string; checkoutUrl: string }> {
   if (!lines.length) throw new ShopifyError("Cart is empty");
   const cart = await createCart(lines);
   if (!cart.checkoutUrl) throw new ShopifyError("Shopify did not return a checkout URL");
-  return { cartId: cart.id, checkoutUrl: cart.checkoutUrl };
+  return { cartId: cart.id, checkoutUrl: withHeadlessCheckoutChannel(cart.checkoutUrl) };
+}
+
+/**
+ * Shopify often redirects cart checkout URLs through Online Store password
+ * unless the headless channel query param is present.
+ * @see https://community.shopify.dev/t/every-checkouturl-ends-up-with-password-page-site-under-construction/24378
+ */
+export function withHeadlessCheckoutChannel(checkoutUrl: string): string {
+  try {
+    const url = new URL(checkoutUrl);
+    // Required so Checkout does not bounce through Online Store password → homepage.
+    url.searchParams.set("channel", "headless-storefronts");
+    return url.toString();
+  } catch {
+    const join = checkoutUrl.includes("?") ? "&" : "?";
+    return `${checkoutUrl}${join}channel=headless-storefronts`;
+  }
 }

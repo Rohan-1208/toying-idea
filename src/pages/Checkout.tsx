@@ -7,7 +7,7 @@ import { Button, Spinner } from "../components/ui";
 import { PageHeader } from "../components/Layout";
 
 export default function Checkout() {
-  const { lines, subtotal, clear, beginShopifyCheckout } = useCart();
+  const { lines, subtotal, beginShopifyCheckout } = useCart();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
 
@@ -18,7 +18,8 @@ export default function Checkout() {
     setSubmitting(true);
     try {
       const checkoutUrl = await beginShopifyCheckout();
-      clear();
+      // Keep the local cart until the browser leaves — if Shopify bounces
+      // (password page / misconfig), the shopper can retry without rebuilding the bag.
       window.location.assign(checkoutUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start checkout. Please try again.");
