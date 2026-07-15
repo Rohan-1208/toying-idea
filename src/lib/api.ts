@@ -122,13 +122,16 @@ export const api = {
   },
 
   orders: {
-    /** Deprecated for storefront — checkout goes through Shopify. Kept for legacy admin/track fallback. */
+    /** Deprecated for storefront — checkout goes through Shopify. */
     create: (_body: unknown) =>
-      Promise.reject(
-        new Error("Checkout is handled by Shopify. Use the cart checkout button instead.")
-      ),
+      Promise.reject(new Error("Checkout is handled by Shopify. Use Place order instead.")),
     track: (idOrNumber: string, email: string) =>
       request<{ order: Order }>(`/orders/${idOrNumber}`, { query: { email } }),
+    trackShopify: (orderNumber: string, email: string) =>
+      request<{ order: import("./types").ShopifyTrackedOrder }>("/track", {
+        method: "POST",
+        body: { orderNumber, email },
+      }),
     adminList: (query?: Record<string, string | undefined>) =>
       request<{ items: Order[]; total: number }>("/orders", { query, admin: true }),
     adminGet: (id: string) => request<{ order: Order }>(`/orders/${id}`, { admin: true }),

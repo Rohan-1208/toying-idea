@@ -118,6 +118,25 @@ export interface Order {
   updatedAt?: string;
 }
 
+/** Shopify-backed public tracking payload from /api/track */
+export interface ShopifyTrackedOrder {
+  orderNumber: string;
+  email: string;
+  financialStatus: string;
+  fulfillmentStatus: string;
+  processedAt?: string;
+  statusPageUrl?: string;
+  items: Array<{ title: string; quantity: number }>;
+  fulfillments: Array<{
+    status: string;
+    carrier?: string;
+    number?: string;
+    url?: string;
+    createdAt?: string;
+  }>;
+  step: "placed" | "confirmed" | "printing" | "shipped" | "delivered" | "cancelled";
+}
+
 export type InquiryType = "pyot" | "gifting" | "contact";
 
 export type InquiryStatus =
