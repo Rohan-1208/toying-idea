@@ -20,9 +20,19 @@ function formatLabel(value: string) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Keep TI as the default order prefix while the customer types. */
+function withTiPrefix(raw: string): string {
+  const upper = raw.toUpperCase().replace(/\s+/g, "");
+  if (!upper || upper === "#" || upper === "#T" || upper === "#TI") return "TI";
+  const bare = upper.replace(/^#+/, "").replace(/^TI-/, "TI");
+  if (bare.startsWith("TI")) return bare;
+  if (/^\d+$/.test(bare)) return `TI${bare}`;
+  return bare;
+}
+
 export default function TrackOrder() {
   const [params] = useSearchParams();
-  const [orderNumber, setOrderNumber] = useState(params.get("order") || "");
+  const [orderNumber, setOrderNumber] = useState(() => withTiPrefix(params.get("order") || "TI"));
   const [email, setEmail] = useState(params.get("email") || "");
   const [order, setOrder] = useState<ShopifyTrackedOrder | null>(null);
   const [loading, setLoading] = useState(false);
@@ -33,7 +43,7 @@ export default function TrackOrder() {
     setOrder(null);
     setLoading(true);
     try {
-      const { order: result } = await api.orders.trackShopify(number.trim(), mail.trim());
+      const { order: result } = await api.orders.trackShopify(withTiPrefix(number).trim(), mail.trim());
       setOrder(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Order not found.");
@@ -44,11 +54,13 @@ export default function TrackOrder() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!orderNumber.trim() || !email.trim()) {
+    const normalized = withTiPrefix(orderNumber);
+    if (!normalized.replace(/^TI$/i, "").trim() || !email.trim()) {
       setError("Enter your order number and email.");
       return;
     }
-    lookup(orderNumber, email);
+    setOrderNumber(normalized);
+    lookup(normalized, email);
   };
 
   useEffect(() => {
@@ -80,7 +92,14 @@ export default function TrackOrder() {
             label="Order number"
             placeholder="TI1005"
             value={orderNumber}
-            onChange={(e) => setOrderNumber(e.target.value)}
+            onChange={(e) => setOrderNumber(withTiPrefix(e.target.value))}
+            onFocus={(e) => {
+              // Place cursor after the TI prefix so customers type the number
+              const el = e.currentTarget;
+              if (el.value === "TI") {
+                requestAnimationFrame(() => el.setSelectionRange(2, 2));
+              }
+            }}
             autoComplete="off"
           />
           <Input

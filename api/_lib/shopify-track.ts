@@ -44,13 +44,16 @@ type ShopifyOrderNode = {
   };
 };
 
-/** Shopify names look like #TI1005 — accept TI1005, #TI1005, ti-1005, etc. */
+/** Shopify names look like #TI1005 — accept TI1005, #TI1005, 1005, ti-1005, etc. */
 export function normalizeOrderName(raw: string): string {
   let t = raw.trim().toUpperCase().replace(/\s+/g, "");
   if (!t) return "";
   t = t.replace(/^#+/, "");
   // Allow TI-1005 → TI1005 (Shopify uses #TI1005 without hyphens in this store)
   t = t.replace(/^TI-/, "TI");
+  // Bare numeric order ids → TI prefix (store default)
+  if (/^\d+$/.test(t)) t = `TI${t}`;
+  if (!t.startsWith("TI") && /^\d/.test(t)) t = `TI${t}`;
   return `#${t}`;
 }
 
