@@ -68,7 +68,7 @@ export default function TrackOrder() {
       <PageHeader
         eyebrow="Support"
         title="Track your order"
-        subtitle="Enter the order number and email from your confirmation message."
+        subtitle="Enter the order number (e.g. TI1005) and email from your confirmation message."
       />
 
       <div className="mx-auto mt-6 max-w-2xl space-y-6 px-5 md:px-8">
@@ -78,7 +78,7 @@ export default function TrackOrder() {
         >
           <Input
             label="Order number"
-            placeholder="#1001"
+            placeholder="TI1005"
             value={orderNumber}
             onChange={(e) => setOrderNumber(e.target.value)}
             autoComplete="off"

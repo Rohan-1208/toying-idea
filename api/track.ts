@@ -5,7 +5,7 @@ import { isShopifyAdminConfigured } from "./_lib/shopify-admin.js";
 
 /**
  * Public order tracking against Shopify Admin API.
- * GET/POST /api/track?order=1001&email=you@email.com
+ * GET/POST /api/track?order=TI1005&email=you@email.com
  */
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET" && req.method !== "POST") {
@@ -14,7 +14,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
 
   if (!isShopifyAdminConfigured()) {
     throw new Error(
-      "Order tracking is not configured. Add SHOPIFY_ADMIN_TOKEN on the server."
+      "Order tracking is not configured. Set SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_TOKEN on Vercel (Production), then redeploy."
     );
   }
 

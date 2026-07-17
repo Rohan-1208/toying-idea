@@ -44,19 +44,25 @@ type ShopifyOrderNode = {
   };
 };
 
-function normalizeOrderName(raw: string): string {
-  const trimmed = raw.trim();
-  if (!trimmed) return "";
-  return trimmed.startsWith("#") ? trimmed : `#${trimmed.replace(/^#+/, "")}`;
+/** Shopify names look like #TI1005 — accept TI1005, #TI1005, ti-1005, etc. */
+export function normalizeOrderName(raw: string): string {
+  let t = raw.trim().toUpperCase().replace(/\s+/g, "");
+  if (!t) return "";
+  t = t.replace(/^#+/, "");
+  // Allow TI-1005 → TI1005 (Shopify uses #TI1005 without hyphens in this store)
+  t = t.replace(/^TI-/, "TI");
+  return `#${t}`;
+}
+
+function namesEqual(a: string, b: string): boolean {
+  return a.replace(/[\s#-]/g, "").toUpperCase() === b.replace(/[\s#-]/g, "").toUpperCase();
 }
 
 function mapStep(order: ShopifyOrderNode): TrackedOrder["step"] {
   if (order.cancelledAt) return "cancelled";
   const fulfill = (order.displayFulfillmentStatus || "").toUpperCase();
   if (fulfill === "FULFILLED") {
-    const delivered = order.fulfillments.some((f) =>
-      /delivered/i.test(f.displayStatus || "")
-    );
+    const delivered = order.fulfillments.some((f) => /delivered/i.test(f.displayStatus || ""));
     return delivered ? "delivered" : "shipped";
   }
   if (fulfill === "PARTIAL" || fulfill === "IN_PROGRESS") return "printing";
@@ -67,7 +73,7 @@ function mapStep(order: ShopifyOrderNode): TrackedOrder["step"] {
 
 const ORDERS_QUERY = `
   query OrdersByName($query: String!) {
-    orders(first: 5, query: $query) {
+    orders(first: 10, query: $query) {
       nodes {
         id
         name
@@ -107,36 +113,61 @@ export async function findShopifyOrderForTracking(
 
   const name = normalizeOrderName(orderNumber);
   const emailNorm = email.trim().toLowerCase();
-  if (!name || name === "#") throw new Error("Enter your order number");
+  if (!name || name === "#") throw new Error("Enter your order number (e.g. TI1005)");
   if (!emailNorm || !emailNorm.includes("@")) throw new Error("Enter a valid email");
 
-  // Shopify search: try with and without leading #
+  const bare = name.replace(/^#/, "");
+  // Shopify search variants for #TI1005-style names
   const queries = [
     `name:${name}`,
-    `name:${name.replace(/^#/, "")}`,
+    `name:${bare}`,
+    `name:#${bare}`,
+    bare,
+    name,
   ];
 
+  let foundByName: ShopifyOrderNode | undefined;
   let match: ShopifyOrderNode | undefined;
+
   for (const q of queries) {
     const data = await shopifyAdminGraphql<{ orders: { nodes: ShopifyOrderNode[] } }>(ORDERS_QUERY, {
       query: q,
     });
-    match = data.orders.nodes.find((o) => (o.email || "").trim().toLowerCase() === emailNorm);
-    if (match) break;
-    // Also allow name-only match then verify email (exact name)
-    const byName = data.orders.nodes.find(
-      (o) => o.name.replace(/\s/g, "").toLowerCase() === name.replace(/\s/g, "").toLowerCase()
+    const nodes = data.orders.nodes || [];
+    if (!nodes.length) continue;
+
+    foundByName =
+      nodes.find((o) => namesEqual(o.name, name)) ||
+      nodes.find((o) => namesEqual(o.name, bare)) ||
+      nodes[0];
+
+    match = nodes.find(
+      (o) =>
+        namesEqual(o.name, name) && (o.email || "").trim().toLowerCase() === emailNorm
     );
-    if (byName) {
-      if ((byName.email || "").trim().toLowerCase() !== emailNorm) {
-        throw new Error("Unauthorized: email does not match this order");
-      }
-      match = byName;
-      break;
+    if (match) break;
+
+    match = nodes.find((o) => (o.email || "").trim().toLowerCase() === emailNorm);
+    if (match && (namesEqual(match.name, name) || namesEqual(match.name, bare))) break;
+    if (match && !namesEqual(match.name, name) && !namesEqual(match.name, bare)) {
+      match = undefined;
     }
   }
 
-  if (!match) throw new Error("Order not found");
+  if (!match && foundByName) {
+    const orderEmail = (foundByName.email || "").trim().toLowerCase();
+    if (!orderEmail) {
+      throw new Error(
+        "This order has no email on file. Use the link in your confirmation email, or contact us with your order number."
+      );
+    }
+    if (orderEmail !== emailNorm) {
+      throw new Error("Email does not match this order");
+    }
+    match = foundByName;
+  }
+
+  if (!match) throw new Error("Order not found. Check the number (e.g. TI1005) and email from your confirmation.");
 
   const fulfillments: TrackedFulfillment[] = [];
   for (const f of match.fulfillments || []) {
