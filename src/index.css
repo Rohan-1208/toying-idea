@@ -130,3 +130,288 @@ html.lock-scroll body {
     font-size: 16px;
   }
 }
+
+/* ── About page ── */
+.about-reveal {
+  opacity: 0;
+  transform: translateY(22px);
+  transition:
+    opacity 0.85s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.85s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.about-reveal.is-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.about-hero-bg {
+  background:
+    radial-gradient(120% 80% at 85% 20%, rgba(63, 184, 196, 0.18), transparent 55%),
+    radial-gradient(90% 70% at 10% 90%, rgba(232, 115, 30, 0.16), transparent 50%),
+    radial-gradient(60% 50% at 50% 0%, rgba(242, 183, 5, 0.12), transparent 60%),
+    linear-gradient(165deg, #fbf6ec 0%, #f4ead5 45%, #efe0c4 100%);
+}
+
+.about-marquee {
+  overflow: hidden;
+  height: 2.5rem;
+  display: flex;
+  align-items: center;
+}
+.about-marquee-track {
+  display: flex;
+  width: max-content;
+  animation: about-marquee 28s linear infinite;
+}
+.about-marquee-chunk {
+  padding-inline: 1.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+@keyframes about-marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.about-print-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4rem 1.5rem 5rem;
+}
+.about-print-glow {
+  position: absolute;
+  width: min(70%, 28rem);
+  height: min(70%, 28rem);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 210, 63, 0.35), transparent 68%);
+  filter: blur(8px);
+  animation: about-pulse 4.5s ease-in-out infinite;
+}
+.about-print-bed {
+  position: relative;
+  width: min(78%, 22rem);
+  aspect-ratio: 1.05;
+  border-radius: 1.25rem;
+  background: linear-gradient(145deg, #2a8c97 0%, #1f6b73 100%);
+  box-shadow:
+    0 30px 60px rgba(43, 32, 24, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: rotate(-6deg) translateY(1rem);
+  animation: about-bed-float 5.5s ease-in-out infinite;
+}
+.about-print-rail {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  top: 14%;
+  height: 0.45rem;
+  border-radius: 999px;
+  background: #f2b705;
+}
+.about-print-gantry {
+  position: absolute;
+  top: 10%;
+  left: 42%;
+  width: 16%;
+  height: 38%;
+  animation: about-gantry 3.8s ease-in-out infinite;
+}
+.about-print-nozzle {
+  display: block;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(180deg, #fbf6ec, #e8731e);
+  clip-path: polygon(20% 0, 80% 0, 65% 70%, 50% 100%, 35% 70%);
+  filter: drop-shadow(0 0 10px rgba(242, 183, 5, 0.55));
+}
+.about-print-stack {
+  position: absolute;
+  left: 50%;
+  bottom: 16%;
+  width: 42%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  align-items: center;
+  gap: 0.28rem;
+}
+.about-print-stack .layer {
+  display: block;
+  width: 100%;
+  height: 1.05rem;
+  border-radius: 0.35rem;
+  transform-origin: bottom center;
+  animation: about-layer-grow 3.8s ease-in-out infinite;
+  opacity: 0.95;
+}
+.about-print-stack .l1 {
+  background: #e8731e;
+  width: 100%;
+  animation-delay: 0s;
+}
+.about-print-stack .l2 {
+  background: #f2b705;
+  width: 88%;
+  animation-delay: 0.15s;
+}
+.about-print-stack .l3 {
+  background: #3fb8c4;
+  width: 74%;
+  animation-delay: 0.3s;
+}
+.about-print-stack .l4 {
+  background: #f08a24;
+  width: 60%;
+  animation-delay: 0.45s;
+}
+.about-print-stack .l5 {
+  background: #5bc0cc;
+  width: 46%;
+  animation-delay: 0.6s;
+}
+.about-print-head {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  background: #f7efde;
+  box-shadow: inset -3px -3px 0 rgba(43, 32, 24, 0.12);
+  margin-bottom: 0.15rem;
+  animation: about-layer-grow 3.8s ease-in-out infinite;
+  animation-delay: 0.75s;
+}
+
+.about-orbit {
+  position: absolute;
+  border-radius: 0.55rem;
+  opacity: 0.9;
+}
+.about-orbit-a {
+  width: 2.4rem;
+  height: 2.4rem;
+  background: #e8731e;
+  top: 22%;
+  right: 12%;
+  animation: about-orbit-drift 7s ease-in-out infinite;
+}
+.about-orbit-b {
+  width: 1.7rem;
+  height: 1.7rem;
+  background: #f2b705;
+  bottom: 28%;
+  right: 18%;
+  border-radius: 50%;
+  animation: about-orbit-drift 8.5s ease-in-out infinite reverse;
+}
+.about-orbit-c {
+  width: 2rem;
+  height: 1.2rem;
+  background: #3fb8c4;
+  top: 38%;
+  right: 42%;
+  animation: about-orbit-drift 6.2s ease-in-out infinite;
+  animation-delay: -2s;
+}
+
+@keyframes about-pulse {
+  0%,
+  100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes about-bed-float {
+  0%,
+  100% {
+    transform: rotate(-6deg) translateY(1rem);
+  }
+  50% {
+    transform: rotate(-4deg) translateY(0.4rem);
+  }
+}
+@keyframes about-gantry {
+  0%,
+  100% {
+    transform: translateX(-30%);
+  }
+  50% {
+    transform: translateX(40%);
+  }
+}
+@keyframes about-layer-grow {
+  0%,
+  12% {
+    transform: scaleY(0.15);
+    opacity: 0.35;
+  }
+  35%,
+  70% {
+    transform: scaleY(1);
+    opacity: 0.95;
+  }
+  88%,
+  100% {
+    transform: scaleY(0.15);
+    opacity: 0.35;
+  }
+}
+@keyframes about-orbit-drift {
+  0%,
+  100% {
+    transform: translate(0, 0) rotate(0deg);
+  }
+  50% {
+    transform: translate(-12px, 18px) rotate(12deg);
+  }
+}
+
+.about-cta-grain {
+  background:
+    radial-gradient(80% 60% at 20% 20%, rgba(232, 115, 30, 0.35), transparent 55%),
+    radial-gradient(70% 50% at 90% 80%, rgba(63, 184, 196, 0.28), transparent 50%),
+    radial-gradient(50% 40% at 50% 50%, rgba(242, 183, 5, 0.12), transparent 60%);
+}
+
+@media (max-width: 767px) {
+  .about-print-stage {
+    opacity: 0.55;
+    max-width: none;
+    top: 0;
+    height: 48%;
+    bottom: auto;
+    padding-top: 5.5rem;
+  }
+  .about-print-bed {
+    width: min(58%, 16rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .about-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .about-marquee-track,
+  .about-print-glow,
+  .about-print-bed,
+  .about-print-gantry,
+  .about-print-stack .layer,
+  .about-print-head,
+  .about-orbit-a,
+  .about-orbit-b,
+  .about-orbit-c {
+    animation: none !important;
+  }
+}
