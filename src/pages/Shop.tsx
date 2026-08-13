@@ -24,6 +24,7 @@ export default function Shop() {
   const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState(params.get("q") || "");
 
   const category = params.get("category") || "";
@@ -33,10 +34,14 @@ export default function Shop() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setError("");
     api.products
       .list({ category: category || undefined, q: q || undefined })
       .then((res) => {
         if (active) setItems(res.items);
+      })
+      .catch((e) => {
+        if (active) setError(e instanceof Error ? e.message : "Could not load products from Shopify");
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -122,6 +127,8 @@ export default function Shop() {
           <div className="flex justify-center py-24">
             <Spinner className="h-6 w-6" />
           </div>
+        ) : error ? (
+          <p className="py-24 text-center text-clay-deep">{error}</p>
         ) : sorted.length === 0 ? (
           <p className="py-24 text-center text-ink/50">No products found.</p>
         ) : (

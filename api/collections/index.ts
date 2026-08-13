@@ -1,26 +1,15 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed } from "../_lib/http.js";
-import { connectDB } from "../_lib/db.js";
-import { Product } from "../_lib/models/Product.js";
 
+/**
+ * Catalog collections come from Shopify Storefront on the client.
+ * This endpoint is retained only so old clients get a clear error.
+ */
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
-
-  await connectDB();
-
-  const [collections, legacyCategories, arrayCategories] = await Promise.all([
-    Product.distinct("collectionName", { active: true, collectionName: { $nin: ["", null] } }),
-    Product.distinct("category", { active: true, category: { $nin: ["", null] } }),
-    Product.distinct("categories", { active: true }),
-  ]);
-
-  const categories = [...new Set([...(legacyCategories as string[]), ...(arrayCategories as string[])])]
-    .filter(Boolean)
-    .sort();
-
-  res.setHeader("Cache-Control", "public, s-maxage=120, stale-while-revalidate=600");
-  res.status(200).json({
-    collections: (collections as string[]).filter(Boolean).sort(),
-    categories,
+  res.status(410).json({
+    error: "Collections are served from Shopify. Use the Storefront API / client collections helper.",
+    collections: [],
+    categories: [],
   });
 });

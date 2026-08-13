@@ -2,18 +2,16 @@ import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed, readBody } from "./_lib/http.js";
 import { connectDB } from "./_lib/db.js";
 import { Review } from "./_lib/models/Review.js";
-import { Product } from "./_lib/models/Product.js";
 import { verifyAdmin } from "./_lib/auth.js";
 import { requireString } from "./_lib/validate.js";
 
-async function syncProductRating(slug: string) {
+async function reviewSummary(slug: string) {
   const [stats] = await Review.aggregate([
     { $match: { slug: slug.toLowerCase(), status: "approved" } },
     { $group: { _id: null, average: { $avg: "$rating" }, count: { $sum: 1 } } },
   ]);
   const average = stats?.count ? Math.round(stats.average * 10) / 10 : 5;
   const count = stats?.count || 0;
-  await Product.updateOne({ slug: slug.toLowerCase() }, { $set: { rating: average, reviewCount: count } });
   return { average, count };
 }
 
@@ -27,7 +25,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       .sort("-createdAt")
       .limit(30)
       .lean();
-    const summary = await syncProductRating(slug);
+    const summary = await reviewSummary(slug);
     res.status(200).json({ items, summary });
     return;
   }
@@ -41,18 +39,15 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       body?: string;
     }>(req);
 
-    const productSlug = requireString(body.slug || slug, "Product slug");
+    const productSlug = requireString(body.slug || slug, "Product slug").toLowerCase();
     const authorName = requireString(body.authorName, "Your name");
     const reviewBody = requireString(body.body, "Review text");
     const rating = Math.min(5, Math.max(1, Math.round(Number(body.rating) || 0)));
     if (!rating) throw new Error("Rating must be between 1 and 5");
 
-    const product = await Product.findOne({ slug: productSlug.toLowerCase(), active: true }).lean();
-    if (!product) throw new Error("Product not found");
-
+    // Products live in Shopify — reviews are keyed by Shopify handle/slug only.
     const review = await Review.create({
-      productId: product._id,
-      slug: productSlug.toLowerCase(),
+      slug: productSlug,
       authorName,
       rating,
       title: body.title?.trim().slice(0, 120) || "",
@@ -60,7 +55,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       status: "approved",
     });
 
-    const summary = await syncProductRating(productSlug);
+    const summary = await reviewSummary(productSlug);
     res.status(201).json({ review, summary });
     return;
   }
@@ -75,8 +70,8 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     }
     const review = await Review.findByIdAndUpdate(id, { status: body.status }, { new: true }).lean();
     if (!review) throw new Error("Review not found");
-    if (review.slug) await syncProductRating(review.slug);
-    res.status(200).json({ review });
+    const summary = review.slug ? await reviewSummary(review.slug) : { average: 5, count: 0 };
+    res.status(200).json({ review, summary });
     return;
   }
 

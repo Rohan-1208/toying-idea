@@ -1,13 +1,10 @@
 import type { Product, Order, Inquiry, InventoryMovement, Review } from "./types";
-import catalog from "../data/products.json";
-import { isShopifyConfigured } from "./shopify/config";
+import { isShopifyConfigured, shopifyConfig } from "./shopify/config";
 import {
   getShopifyProduct,
   listShopifyCollections,
   listShopifyProducts,
 } from "./shopify";
-
-const fallbackCatalog = catalog as Product[];
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "/api";
 
@@ -19,6 +16,14 @@ export const auth = {
   clear: () => localStorage.removeItem(TOKEN_KEY),
   isAuthed: () => !!localStorage.getItem(TOKEN_KEY),
 };
+
+function requireShopify() {
+  if (!isShopifyConfigured()) {
+    throw new Error(
+      "Shopify is not configured. Set VITE_SHOPIFY_STORE_DOMAIN and VITE_SHOPIFY_STOREFRONT_TOKEN."
+    );
+  }
+}
 
 async function request<T>(
   path: string,
@@ -46,7 +51,7 @@ async function request<T>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-        signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(15_000),
   });
   const text = await res.text();
   const data = text ? JSON.parse(text) : {};
@@ -57,68 +62,24 @@ async function request<T>(
   return data as T;
 }
 
-function filterSample(query?: Record<string, string | undefined>): Product[] {
-  let items = [...fallbackCatalog];
-  if (!query) return items;
-  if (query.category) items = items.filter((p) => p.category === query.category);
-  if (query.collection) items = items.filter((p) => p.collectionName === query.collection);
-  if (query.tag) items = items.filter((p) => p.tags?.includes(query.tag!));
-  if (query.badge) items = items.filter((p) => p.badges?.includes(query.badge!));
-  if (query.featured) items = items.filter((p) => p.featured);
-  if (query.q) {
-    const q = query.q.toLowerCase();
-    items = items.filter(
-      (p) =>
-        p.name.toLowerCase().includes(q) ||
-        p.description?.toLowerCase().includes(q) ||
-        p.tags?.some((t) => t.toLowerCase().includes(q))
-    );
-  }
-  return items;
-}
-
 export const api = {
   products: {
-    async list(query?: Record<string, string | undefined>): Promise<{ items: Product[]; usingSample: boolean }> {
-      if (isShopifyConfigured()) {
-        try {
-          const items = await listShopifyProducts(query);
-          if (items.length) return { items, usingSample: false };
-        } catch (err) {
-          console.error("Shopify product list failed:", err);
-        }
-      }
-      try {
-        const data = await request<{ items: Product[] }>("/products", { query });
-        if (!data.items?.length) return { items: filterSample(query), usingSample: true };
-        return { items: data.items, usingSample: false };
-      } catch {
-        return { items: filterSample(query), usingSample: true };
-      }
+    /** Catalog is Shopify-only — no Mongo / sample fallback. */
+    async list(query?: Record<string, string | undefined>): Promise<{ items: Product[] }> {
+      requireShopify();
+      const items = await listShopifyProducts(query);
+      return { items };
     },
-    async get(slug: string): Promise<{ product: Product | null; usingSample: boolean }> {
-      if (isShopifyConfigured()) {
-        try {
-          const product = await getShopifyProduct(slug);
-          if (product) return { product, usingSample: false };
-        } catch (err) {
-          console.error("Shopify product get failed:", err);
-        }
-      }
-      try {
-        const data = await request<{ product: Product }>(`/products/${slug}`);
-        return { product: data.product, usingSample: false };
-      } catch {
-        const product = fallbackCatalog.find((p) => p.slug === slug) || null;
-        return { product, usingSample: true };
-      }
+    async get(slug: string): Promise<{ product: Product | null }> {
+      requireShopify();
+      const product = await getShopifyProduct(slug);
+      return { product };
     },
-    create: (body: Partial<Product>) =>
-      request<{ product: Product }>("/products", { method: "POST", body, admin: true }),
-    update: (id: string, body: Partial<Product>) =>
-      request<{ product: Product }>(`/products/${id}`, { method: "PUT", body, admin: true }),
-    remove: (id: string) => request<{ ok: boolean }>(`/products/${id}`, { method: "DELETE", admin: true }),
-    adminList: () => request<{ items: Product[] }>("/products", { query: { all: "1", limit: 200 } }),
+    adminList: async () => {
+      requireShopify();
+      const items = await listShopifyProducts();
+      return { items };
+    },
   },
 
   orders: {
@@ -193,15 +154,12 @@ export const api = {
   health: () => request<{ ok: boolean; db: string; dbError?: string }>("/health"),
 
   collections: async () => {
-    if (isShopifyConfigured()) {
-      try {
-        return await listShopifyCollections();
-      } catch (err) {
-        console.error("Shopify collections failed:", err);
-      }
-    }
-    return request<{ collections: string[]; categories: string[] }>("/collections");
+    requireShopify();
+    return listShopifyCollections();
   },
+
+  shopifyAdminUrl: () =>
+    shopifyConfig.domain ? `https://${shopifyConfig.domain}/admin/products` : "https://admin.shopify.com",
 
   reviews: {
     list: (slug: string) =>

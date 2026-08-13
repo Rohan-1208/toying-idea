@@ -4,8 +4,8 @@ A full-stack site for **TOYING IDEA**, a premium 3D-printed toy & collectibles b
 
 - A scroll-driven **3D landing experience** (React Three Fiber) telling the brand story.
 - A complete **storefront** — shop, product pages, cart, checkout, order tracking, PYOT, about, careers, contact.
-- A backend on **Vercel serverless functions + MongoDB** (Mongoose).
-- An **admin panel** at `/admin` to track orders, manage products and review inquiries.
+- A backend on **Vercel serverless** + **Shopify** (catalog/checkout) + **MongoDB** (inquiries/reviews).
+- An **admin panel** at `/admin` for orders, Shopify catalog view, and inquiries.
 
 ---
 
@@ -14,7 +14,8 @@ A full-stack site for **TOYING IDEA**, a premium 3D-printed toy & collectibles b
 - **React 19 + TypeScript + Vite**, **React Router**
 - **three.js / @react-three/fiber / drei / postprocessing** — the 3D home
 - **Tailwind CSS** — UI
-- **Vercel serverless** (`/api/*`) + **Mongoose** — backend
+- **Shopify Storefront API** — product catalog + checkout
+- **Vercel serverless** (`/api/*`) + **Mongoose** — inquiries, reviews, admin auth
 - **JWT** — single-admin auth
 
 ---
@@ -23,37 +24,37 @@ A full-stack site for **TOYING IDEA**, a premium 3D-printed toy & collectibles b
 
 ```bash
 npm install
-cp .env.example .env              # then fill in real values
+cp .env.example .env              # then fill in real values (Shopify + Mongo)
 
-# Frontend only (storefront works on the bundled sample catalog):
+# Frontend only (still needs VITE_SHOPIFY_* for the shop):
 npm run dev                        # http://localhost:5173
 
-# Full stack (frontend + /api serverless functions + MongoDB):
+# Full stack (frontend + /api serverless functions):
 npm run dev:full                   # runs `vercel dev` (requires the Vercel CLI)
 ```
 
-> Without a DB configured, the storefront gracefully falls back to a bundled
-> sample catalog (`src/data/products.json`) so it's always browsable. The admin
-> panel and order/checkout flows require a real `MONGODB_URI`.
+> The product catalog is **Shopify-only**. There is no Mongo/sample product fallback.
 
 ### Environment variables (`.env`)
 
 | Var | Purpose |
 | --- | --- |
-| `MONGODB_URI` | MongoDB Atlas connection string (new `toying_idea` database) |
+| `VITE_SHOPIFY_STORE_DOMAIN` | Shopify store domain |
+| `VITE_SHOPIFY_STOREFRONT_TOKEN` | Storefront API token (catalog + cart) |
+| `SHOPIFY_ADMIN_TOKEN` / client creds | Order tracking + admin product counts |
+| `MONGODB_URI` | MongoDB for inquiries / reviews / admin |
 | `MONGODB_DB` | Database name (default: `toying_idea`) |
 | `JWT_SECRET` | secret for signing admin tokens |
 | `ADMIN_EMAIL` / `ADMIN_PASSWORD` | the single admin login |
 | `VITE_API_BASE` | leave empty to use same-origin `/api` |
 
-### Initialize the database
+### Initialize MongoDB (non-catalog)
 
 ```bash
 npm run init:db
 ```
 
-Creates indexes and seeds the catalog from `src/data/products.json` (safe to re-run).
-
+Creates indexes for orders, inquiries, and reviews. Manage products in **Shopify Admin**.
 ---
 
 ## Project structure
@@ -78,9 +79,9 @@ src/
   components/                # Navbar, Footer, CartDrawer, ProductCard, ui kit…
   context/                   # CartContext, AdminAuth
   lib/                       # api client, types, formatters
-  data/                      # products.json (catalog source + offline fallback)
-  pages/                     # storefront pages
-    admin/                   # admin panel pages
+  lib/                        # api client, Shopify storefront helpers, types
+  pages/                      # storefront pages
+    admin/                    # admin panel (Shopify catalog is read-only)
   App.tsx                    # routes (lazy-loaded; 3D stays in its own chunk)
 ```
 
@@ -97,12 +98,8 @@ Admin: `/admin/login`, `/admin` (dashboard), `/admin/orders`, `/admin/products`,
 
 | Method | Endpoint | Auth | Description |
 | --- | --- | --- | --- |
-| `GET` | `/api/products` | – | List products (filters: `q, category, collection, tag, badge, featured, sort`) |
-| `POST` | `/api/products` | admin | Create product |
-| `GET` | `/api/products/:idOrSlug` | – | Get one |
-| `PUT/PATCH` | `/api/products/:id` | admin | Update |
-| `DELETE` | `/api/products/:id` | admin | Delete |
-| `POST` | `/api/orders` | – | Create order (totals recomputed server-side) |
+| Storefront catalog | Shopify Storefront API | – | Products / collections / cart (client-side) |
+| `POST` | `/api/orders` | – | Legacy — storefront checkout uses Shopify |
 | `GET` | `/api/orders` | admin | List orders (filters: `status, q`) |
 | `GET` | `/api/orders/:idOrNumber?email=` | email/admin | Track / read one |
 | `PUT/PATCH` | `/api/orders/:id` | admin | Update status / payment / notes |
@@ -117,7 +114,8 @@ Admin: `/admin/login`, `/admin` (dashboard), `/admin/orders`, `/admin/products`,
 
 ## Data models
 
-Clean schemas live in `api/_lib/models`. Collections: `products`, `inventory_movements`, `orders`, `inquiries`.
+Clean schemas live in `api/_lib/models` for inquiries, reviews, and legacy orders.
+**Product catalog is Shopify** — manage products, inventory, and checkout there.
 
 ---
 

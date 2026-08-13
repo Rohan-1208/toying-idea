@@ -7,12 +7,11 @@
  *   SHOPIFY_ADMIN_TOKEN=shpat_...
  *
  * Optional source (first available wins):
- *   CATALOG_API_URL=https://toying-idea.vercel.app/api/products
- *   MONGODB_URI=... (legacy)
- *   Or falls back to src/data/products.json
+ *   CATALOG_JSON=./path/to/products.json
+ *   CATALOG_API_URL=https://… (legacy JSON catalog API)
  *
  * Usage:
- *   node --env-file=.env scripts/import-shopify-products.mjs
+ *   CATALOG_JSON=./export.json node --env-file=.env scripts/import-shopify-products.mjs
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -54,42 +53,28 @@ async function adminGraphql(query, variables = {}) {
 }
 
 async function loadProducts() {
-  const apiUrl = process.env.CATALOG_API_URL || "https://toying-idea.vercel.app/api/products";
-  try {
+  const file = process.env.CATALOG_JSON;
+  if (file) {
+    const samplePath = path.isAbsolute(file) ? file : path.join(root, file);
+    const items = JSON.parse(fs.readFileSync(samplePath, "utf8"));
+    console.log(`Loaded ${items.length} products from ${samplePath}`);
+    return items;
+  }
+
+  const apiUrl = process.env.CATALOG_API_URL;
+  if (apiUrl) {
     const res = await fetch(apiUrl);
-    if (res.ok) {
-      const data = await res.json();
-      if (data.items?.length) {
-        console.log(`Loaded ${data.items.length} products from ${apiUrl}`);
-        return data.items;
-      }
-    }
-  } catch (err) {
-    console.warn("Catalog API unavailable:", err.message);
+    if (!res.ok) throw new Error(`Catalog API failed (${res.status})`);
+    const data = await res.json();
+    if (!data.items?.length) throw new Error("Catalog API returned no items");
+    console.log(`Loaded ${data.items.length} products from ${apiUrl}`);
+    return data.items;
   }
 
-  if (process.env.MONGODB_URI) {
-    try {
-      const mongoose = await import("mongoose");
-      await mongoose.default.connect(process.env.MONGODB_URI, {
-        dbName: process.env.MONGODB_DB || "toying_idea",
-        serverSelectionTimeoutMS: 8000,
-      });
-      const items = await mongoose.default.connection.db.collection("products").find({}).toArray();
-      await mongoose.default.disconnect();
-      if (items.length) {
-        console.log(`Loaded ${items.length} products from MongoDB`);
-        return items;
-      }
-    } catch (err) {
-      console.warn("MongoDB unavailable:", err.message);
-    }
-  }
-
-  const samplePath = path.join(root, "src/data/products.json");
-  const items = JSON.parse(fs.readFileSync(samplePath, "utf8"));
-  console.log(`Loaded ${items.length} products from products.json fallback`);
-  return items;
+  throw new Error(
+    "No catalog source. Set CATALOG_JSON=./products.json or CATALOG_API_URL=…\n" +
+      "Product catalog is managed in Shopify — this script is only for one-time imports."
+  );
 }
 
 function money(amount) {

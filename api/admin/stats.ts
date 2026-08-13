@@ -3,23 +3,38 @@ import { withApi, methodNotAllowed } from "../_lib/http.js";
 import { connectDB } from "../_lib/db.js";
 import { verifyAdmin } from "../_lib/auth.js";
 import { Order } from "../_lib/models/Order.js";
-import { Product } from "../_lib/models/Product.js";
 import { Inquiry } from "../_lib/models/Inquiry.js";
+import { isShopifyAdminConfigured, shopifyAdminGraphql } from "../_lib/shopify-admin.js";
+
+async function shopifyProductCount(): Promise<number> {
+  if (!isShopifyAdminConfigured()) return 0;
+  try {
+    const data = await shopifyAdminGraphql<{ productsCount: { count: number } }>(
+      `query ProductCount { productsCount(query: "status:active") { count } }`
+    );
+    return data.productsCount?.count ?? 0;
+  } catch {
+    try {
+      const data = await shopifyAdminGraphql<{
+        products: { edges: Array<{ node: { id: string } }> };
+      }>(`query { products(first: 250, query: "status:active") { edges { node { id } } } }`);
+      return data.products?.edges?.length ?? 0;
+    } catch {
+      return 0;
+    }
+  }
+}
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
   verifyAdmin(req);
   await connectDB();
 
-  const [totalOrders, totalProducts, openInquiries, lowStock, statusAgg, revenueAgg, recentOrders] =
+  const [totalOrders, totalProducts, openInquiries, statusAgg, revenueAgg, recentOrders] =
     await Promise.all([
       Order.countDocuments({}),
-      Product.countDocuments({ active: true }),
+      shopifyProductCount(),
       Inquiry.countDocuments({ status: { $in: ["new", "in-review", "quoted", "approved", "printing"] } }),
-      Product.countDocuments({
-        active: true,
-        $expr: { $lte: ["$stock", "$lowStockThreshold"] },
-      }),
       Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
       Order.aggregate([
         { $match: { status: { $ne: "cancelled" } } },
@@ -35,7 +50,8 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     totalOrders,
     totalProducts,
     openInquiries,
-    lowStock,
+    // Inventory lives in Shopify — Mongo low-stock is unused.
+    lowStock: 0,
     revenue: revenueAgg[0]?.total || 0,
     byStatus,
     recentOrders,
