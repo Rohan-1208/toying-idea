@@ -37,16 +37,16 @@ export function PageHeader({
   subtitle?: string;
 }) {
   return (
-    <div className="mx-auto max-w-7xl px-5 pb-2 pt-10 md:px-8 md:pt-16">
+    <div className="mx-auto max-w-7xl px-5 pb-2 pt-12 md:px-8 md:pt-16">
       {eyebrow && (
-        <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-clay-deep/80">
+        <span className="text-[11px] font-semibold uppercase tracking-[0.28em] text-ink/40">
           {eyebrow}
         </span>
       )}
-      <h1 className="mt-3 font-display text-4xl font-bold tracking-tightish text-ink md:text-6xl">
+      <h1 className="mt-3 max-w-3xl font-display text-4xl font-bold tracking-tightish text-ink md:text-5xl lg:text-6xl">
         {title}
       </h1>
-      {subtitle && <p className="mt-4 max-w-2xl text-lg text-ink/60">{subtitle}</p>}
+      {subtitle && <p className="mt-4 max-w-xl text-base leading-relaxed text-ink/60 md:text-lg">{subtitle}</p>}
     </div>
   );
 }

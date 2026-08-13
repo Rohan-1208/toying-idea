@@ -34,7 +34,7 @@ export function Loader() {
         <span className="mt-4 h-2 w-2 animate-spin-slow rounded-sm bg-clay" aria-hidden />
       )}
       <p className="mt-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-ink/40">
-        {fast ? "Loading" : "Building your world"}
+        TOYING IDEA
       </p>
     </div>
   );

@@ -7,7 +7,7 @@ export type ShopifyMoney = {
 
 export type ShopifyVariantNode = {
   id: string;
-  title: string;
+  title?: string;
   availableForSale: boolean;
   sku?: string | null;
   price: ShopifyMoney;
@@ -30,13 +30,13 @@ export type ShopifyProductNode = {
   images?: { nodes: Array<{ url: string; altText?: string | null }> };
   priceRange: {
     minVariantPrice: ShopifyMoney;
-    maxVariantPrice: ShopifyMoney;
+    maxVariantPrice?: ShopifyMoney;
   };
   compareAtPriceRange?: {
     minVariantPrice: ShopifyMoney;
   };
   options?: Array<{ name: string; values: string[] }>;
-  variants: { nodes: ShopifyVariantNode[] };
+  variants?: { nodes: ShopifyVariantNode[] };
 };
 
 function moneyAmount(m?: ShopifyMoney | null): number {
@@ -46,14 +46,14 @@ function moneyAmount(m?: ShopifyMoney | null): number {
 
 function detectPricingMode(node: ShopifyProductNode): ProductPricingMode {
   if (node.tags?.some((t) => t.toLowerCase() === "bundle")) return "bundle";
-  const prices = new Set(node.variants.nodes.map((v) => v.price.amount));
-  if (prices.size <= 1 && node.variants.nodes.length > 1) return "bundle";
+  const prices = new Set((node.variants?.nodes || []).map((v) => v.price.amount));
+  if (prices.size <= 1 && (node.variants?.nodes?.length || 0) > 1) return "bundle";
   return "variant";
 }
 
 function mapVariant(v: ShopifyVariantNode): ProductVariant {
   const label =
-    v.title === "Default Title"
+    !v.title || v.title === "Default Title"
       ? "Standard"
       : v.selectedOptions?.map((o) => o.value).join(" / ") || v.title;
 
@@ -70,7 +70,8 @@ function mapVariant(v: ShopifyVariantNode): ProductVariant {
 
 export function mapShopifyProduct(node: ShopifyProductNode): Product {
   const pricingMode = detectPricingMode(node);
-  const mappedVariants = node.variants.nodes.map(mapVariant);
+  const variantsNodes = node.variants?.nodes || [];
+  const mappedVariants = variantsNodes.map(mapVariant);
   // Bundles still need at least one Shopify variant GID for checkout (Default Title → "Standard").
   const variants =
     pricingMode === "bundle"
@@ -79,6 +80,7 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
           return extras.length ? extras : mappedVariants;
         })()
       : mappedVariants;
+
   const images = [
     ...(node.featuredImage?.url ? [node.featuredImage.url] : []),
     ...(node.images?.nodes?.map((i) => i.url) || []),
@@ -96,13 +98,13 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
 
   const compareAt = moneyAmount(node.compareAtPriceRange?.minVariantPrice);
   const minPrice = moneyAmount(node.priceRange.minVariantPrice);
-  const primaryVariantId = node.variants.nodes[0]?.id;
+  const primaryVariantId = variantsNodes[0]?.id;
 
   return {
     _id: node.id,
     name: node.title,
     slug: node.handle,
-    sku: node.variants.nodes[0]?.sku || undefined,
+    sku: variantsNodes[0]?.sku || undefined,
     description: node.description || undefined,
     shortDescription: node.description?.slice(0, 160) || undefined,
     price: minPrice,
@@ -119,7 +121,6 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     thumbnail: images[0],
     variants,
     pricingMode,
-    // Prefer the primary Shopify variant for add-to-cart when options omit variantId (bundles).
     ...(primaryVariantId ? { shopifyMerchandiseId: primaryVariantId } : {}),
     inStock: node.availableForSale,
     stock: node.availableForSale ? 99 : 0,

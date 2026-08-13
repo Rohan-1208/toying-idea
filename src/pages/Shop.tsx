@@ -11,7 +11,6 @@ const CATEGORIES = [
   { id: "toys", label: "Toys" },
   { id: "fidget", label: "Fidget" },
   { id: "collectibles", label: "Collectibles" },
-  { id: "gifting", label: "Gifting" },
 ];
 
 const SORTS = [
@@ -67,23 +66,22 @@ export default function Shop() {
   };
 
   return (
-    <div className="pb-10">
+    <div className="pb-16">
       <PageHeader
-        eyebrow="The Collection"
-        title="Shop all toys"
-        subtitle="Editorial, collectible-first, and built for gifting. Every piece printed to order in premium materials."
+        eyebrow="Shop"
+        title="The collection"
+        subtitle="Printed to order. Built to keep."
       />
 
       <div className="mx-auto max-w-7xl px-5 md:px-8">
-        {/* Controls */}
-        <div className="sticky top-[68px] z-30 -mx-5 mb-8 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-cream/85 px-5 py-4 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
+        <div className="sticky top-[68px] z-30 -mx-5 mb-10 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-cream/90 px-5 py-4 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
           <div className="flex flex-wrap gap-1.5">
             {CATEGORIES.map((c) => (
               <button
                 key={c.id}
                 onClick={() => update("category", c.id)}
                 className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  category === c.id ? "bg-ink text-cream-50" : "bg-ink/5 text-ink/60 hover:bg-ink/10"
+                  category === c.id ? "bg-ink text-cream-50" : "bg-ink/5 text-ink/55 hover:bg-ink/10"
                 }`}
               >
                 {c.label}
@@ -102,8 +100,8 @@ export default function Shop() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search toys…"
-                className="w-40 rounded-full border border-ink/15 bg-white/70 px-4 py-1.5 text-sm outline-none focus:border-clay md:w-52"
+                placeholder="Search…"
+                className="w-36 rounded-full border border-ink/15 bg-white/70 px-4 py-1.5 text-sm outline-none focus:border-clay md:w-48"
               />
             </form>
             <select
@@ -120,15 +118,14 @@ export default function Shop() {
           </div>
         </div>
 
-        {/* Grid */}
         {loading ? (
           <div className="flex justify-center py-24">
             <Spinner className="h-6 w-6" />
           </div>
         ) : sorted.length === 0 ? (
-          <p className="py-24 text-center text-ink/50">No products found. Try a different filter.</p>
+          <p className="py-24 text-center text-ink/50">No products found.</p>
         ) : (
-          <div className="grid grid-cols-2 gap-x-5 gap-y-8 md:grid-cols-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-x-5 gap-y-10 md:grid-cols-3 lg:grid-cols-4">
             {sorted.map((p) => (
               <ProductCard key={p.slug} product={p} />
             ))}

@@ -20,18 +20,27 @@ export function ProductImage({
   product,
   className = "",
   rounded = "rounded-2xl",
+  width = 600,
+  priority = false,
 }: {
   product: Product;
   className?: string;
   rounded?: string;
+  /** Target display width for CDN/Drive resizing */
+  width?: number;
+  priority?: boolean;
 }) {
-  const img = normalizeImageUrl(product.thumbnail || product.images?.[0] || "");
+  const raw = product.thumbnail || product.images?.[0] || "";
+  const img = normalizeImageUrl(raw, width);
   if (img) {
     return (
       <img
         src={img}
         alt={product.name}
-        loading="lazy"
+        loading={priority ? "eager" : "lazy"}
+        decoding="async"
+        fetchPriority={priority ? "high" : "auto"}
+        sizes="(max-width: 768px) 50vw, 25vw"
         className={`h-full w-full object-cover ${rounded} ${className}`}
       />
     );
@@ -50,7 +59,6 @@ export function ProductImage({
       className={`relative flex h-full w-full items-center justify-center overflow-hidden ${rounded} ${className}`}
       style={{ background: `linear-gradient(135deg, ${a}, ${b})` }}
     >
-      {/* decorative voxel cubes */}
       <svg className="absolute inset-0 h-full w-full opacity-30" viewBox="0 0 100 100" preserveAspectRatio="none">
         <g fill="#FBF6EC">
           <rect x="14" y="60" width="14" height="14" rx="2" transform="rotate(-8 21 67)" />

@@ -1,3 +1,43 @@
+export const PRODUCT_CARD_FIELDS = `
+  id
+  handle
+  title
+  productType
+  tags
+  availableForSale
+  featuredImage {
+    url
+    altText
+  }
+  priceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+  compareAtPriceRange {
+    minVariantPrice {
+      amount
+      currencyCode
+    }
+  }
+  variants(first: 1) {
+    nodes {
+      id
+      availableForSale
+      sku
+      price {
+        amount
+        currencyCode
+      }
+      compareAtPrice {
+        amount
+        currencyCode
+      }
+    }
+  }
+`;
+
 export const PRODUCT_FIELDS = `
   id
   handle
@@ -12,7 +52,7 @@ export const PRODUCT_FIELDS = `
     url
     altText
   }
-  images(first: 12) {
+  images(first: 8) {
     nodes {
       url
       altText
@@ -38,7 +78,7 @@ export const PRODUCT_FIELDS = `
     name
     values
   }
-  variants(first: 50) {
+  variants(first: 40) {
     nodes {
       id
       title
@@ -67,7 +107,7 @@ export const PRODUCTS_QUERY = `
   query Products($first: Int!, $query: String) {
     products(first: $first, query: $query) {
       nodes {
-        ${PRODUCT_FIELDS}
+        ${PRODUCT_CARD_FIELDS}
       }
     }
   }
@@ -102,8 +142,19 @@ export const COLLECTION_PRODUCTS_QUERY = `
       title
       products(first: $first) {
         nodes {
-          ${PRODUCT_FIELDS}
+          ${PRODUCT_CARD_FIELDS}
         }
+      }
+    }
+  }
+`;
+
+export const PRODUCT_TYPES_QUERY = `
+  query ProductTypes($first: Int!) {
+    products(first: $first, query: "status:active") {
+      nodes {
+        productType
+        tags
       }
     }
   }

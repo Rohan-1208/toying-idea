@@ -6,23 +6,23 @@ const COLS = [
     title: "Shop",
     links: [
       { to: "/shop", label: "All products" },
-      { to: "/shop?category=fidget", label: "Fidget toys" },
+      { to: "/shop?category=toys", label: "Toys" },
+      { to: "/shop?category=fidget", label: "Fidget" },
       { to: "/shop?category=collectibles", label: "Collectibles" },
-      { to: "/collections", label: "Collections" },
     ],
   },
   {
     title: "Make",
     links: [
       { to: "/pyot", label: "Print Your Own Toy" },
-      { to: "/gifting", label: "Custom gifting" },
       { to: "/track", label: "Track an order" },
     ],
   },
   {
-    title: "Brand",
+    title: "Company",
     links: [
       { to: "/about", label: "About" },
+      { to: "/careers", label: "Careers" },
       { to: "/contact", label: "Contact" },
     ],
   },
@@ -31,12 +31,11 @@ const COLS = [
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-ink/10 bg-cream-100">
-      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-[1.4fr_1fr_1fr_1fr] md:px-8">
+      <div className="mx-auto grid max-w-7xl gap-10 px-5 py-14 md:grid-cols-[1.5fr_1fr_1fr_1fr] md:px-8">
         <div>
           <BrandLogo to="/" size="md" />
           <p className="mt-4 max-w-xs text-sm leading-relaxed text-ink/60">
-            Premium 3D printed toys built like future collectibles. Upload,
-            customize, gift and collect.
+            Premium 3D printed toys. Designed to collect, built to last.
           </p>
         </div>
 

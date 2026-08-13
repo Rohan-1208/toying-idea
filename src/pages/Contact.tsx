@@ -36,7 +36,11 @@ export default function Contact() {
 
   return (
     <div className="pb-20">
-      <PageHeader eyebrow="Say hello" title="Contact us" subtitle="Questions, collabs, wholesale — we'd love to hear from you." />
+      <PageHeader
+        eyebrow="Contact"
+        title="Say hello"
+        subtitle="Orders, custom prints, wholesale, or press — drop a note and we'll get back to you."
+      />
 
       <div className="mx-auto mt-6 grid max-w-5xl gap-10 px-5 md:grid-cols-[1fr_1.3fr] md:px-8">
         <div className="space-y-6">
@@ -48,7 +52,7 @@ export default function Contact() {
           </div>
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-ink/40">Support</h4>
-            <p className="mt-1 text-ink/70">Order help, custom builds, and gifting.</p>
+            <p className="mt-1 text-ink/70">Order help and custom print questions.</p>
           </div>
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-ink/40">Hours</h4>
@@ -56,7 +60,7 @@ export default function Contact() {
           </div>
         </div>
 
-        <div className="rounded-3xl border border-ink/10 bg-white/60 p-6 md:p-8">
+        <div className="rounded-2xl border border-ink/10 bg-white/50 p-6 md:p-8">
           {done ? (
             <div className="py-10 text-center">
               <h3 className="font-display text-2xl font-bold text-ink">Message sent!</h3>

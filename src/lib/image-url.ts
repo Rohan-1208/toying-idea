@@ -1,6 +1,6 @@
 /**
  * Normalize image URLs for display — supports Google Drive share links,
- * relative /api/uploads paths, and standard HTTPS URLs.
+ * Shopify CDN sizing, relative /api/uploads paths, and standard HTTPS URLs.
  */
 
 const DRIVE_HOSTS = ["drive.google.com", "docs.google.com"];
@@ -22,21 +22,39 @@ export function extractGoogleDriveId(url: string): string | null {
   }
 }
 
-export function toGoogleDriveImageUrl(fileId: string, size = 1600): string {
+export function toGoogleDriveImageUrl(fileId: string, size = 800): string {
   return `https://drive.google.com/thumbnail?id=${fileId}&sz=w${size}`;
 }
 
-export function normalizeImageUrl(src: string): string {
+/** Request a resized Shopify CDN asset when possible. */
+export function withImageWidth(src: string, width?: number): string {
+  if (!src || !width || width <= 0) return src;
+  try {
+    const url = new URL(src);
+    const host = url.hostname;
+    if (host.includes("cdn.shopify.com") || host.includes("shopify.com")) {
+      url.searchParams.set("width", String(Math.round(width)));
+      return url.toString();
+    }
+  } catch {
+    // keep original
+  }
+  return src;
+}
+
+export function normalizeImageUrl(src: string, width = 800): string {
   if (!src) return "";
   if (src.startsWith("data:")) return src;
 
   const driveId = extractGoogleDriveId(src);
-  if (driveId) return toGoogleDriveImageUrl(driveId);
+  if (driveId) return toGoogleDriveImageUrl(driveId, Math.min(width, 1600));
 
-  if (src.startsWith("http://") || src.startsWith("https://")) return src;
+  if (src.startsWith("http://") || src.startsWith("https://")) {
+    return withImageWidth(src, width);
+  }
   return src.startsWith("/") ? src : `/${src}`;
 }
 
-export function normalizeImageList(urls?: string[]): string[] {
-  return (urls || []).map(normalizeImageUrl).filter(Boolean);
+export function normalizeImageList(urls?: string[], width = 1200): string[] {
+  return (urls || []).map((u) => normalizeImageUrl(u, width)).filter(Boolean);
 }

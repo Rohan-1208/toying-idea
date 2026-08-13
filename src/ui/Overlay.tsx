@@ -3,23 +3,6 @@ import { SCROLL_PAGES, STOPS } from "../three/scroll";
 const SPAN = (pages: number) => pages - 1;
 const topFor = (offset: number, pages: number) => `${offset * SPAN(pages) * 100}vh`;
 
-function Eyebrow({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.28em] text-clay-deep/80">
-      <span className="h-[6px] w-[6px] rounded-full bg-clay" />
-      {children}
-    </span>
-  );
-}
-
-function Pill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="rounded-full border border-ink/15 bg-cream-50/70 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-ink/70 backdrop-blur">
-      {children}
-    </span>
-  );
-}
-
 function Section({
   offset,
   scrollPages,
@@ -49,123 +32,122 @@ export function Overlay({ scrollPages = SCROLL_PAGES }: { scrollPages?: number }
       className="pointer-events-none relative w-screen"
       style={{ height: `${scrollPages * 100}vh` }}
     >
-      {/* Ch1 — HERO CITY (0%) */}
+      {/* Hero — brand first, one idea */}
       <Section offset={STOPS.hero} scrollPages={scrollPages} align="left">
         <div className="animate-float-up">
-          <Eyebrow>Toys for a new generation</Eyebrow>
-          <h1 className="mt-5 font-display text-5xl font-bold leading-[0.95] tracking-tightish text-ink md:text-7xl">
-            3D printed toys
+          <p className="font-display text-sm font-bold tracking-[0.22em] text-clay md:text-base">
+            TOYING IDEA
+          </p>
+          <h1 className="mt-4 font-display text-5xl font-bold leading-[0.95] tracking-tightish text-ink md:text-7xl">
+            Toys built
             <br />
-            built like future
-            <br />
-            <span className="text-clay">collectibles.</span>
+            to collect.
           </h1>
-          <p className="mt-6 max-w-md text-base leading-relaxed text-ink/70 md:text-lg">
-            Upload, customize, gift and collect — precision-built toys that feel
-            like high-end design objects, not disposables.
+          <p className="mt-5 max-w-sm text-base leading-relaxed text-ink/65 md:text-lg">
+            Premium 3D printed pieces — shop ready-made drops or print your own.
           </p>
           <div className="pointer-events-auto mt-8 flex flex-wrap items-center gap-3">
-            <a href="/pyot" className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5">
-              PYOT — Print Your Own Toy
+            <a
+              href="/shop"
+              className="rounded-full bg-ink px-6 py-3 text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5"
+            >
+              Shop
             </a>
-            <a href="/shop" className="rounded-full border border-ink/20 bg-cream-50/60 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition-transform hover:-translate-y-0.5">
-              Shop the Collection
+            <a
+              href="/pyot"
+              className="rounded-full border border-ink/20 bg-cream-50/50 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition-transform hover:-translate-y-0.5"
+            >
+              Print your own
             </a>
-          </div>
-          <div className="mt-10 flex flex-wrap gap-2">
-            <Pill>Premium 3D Printed</Pill>
-            <Pill>Customization-first</Pill>
-            <Pill>Collector-ready</Pill>
           </div>
         </div>
       </Section>
 
-      {/* Ch2 — THE DIVE / PRINT STUDIO (25% → 31% label) */}
+      {/* Dive */}
       <Section offset={0.31} scrollPages={scrollPages} align="right">
         <div className="text-right">
-          <Eyebrow>The Dive · Transition</Eyebrow>
-          <h2 className="mt-4 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-6xl">
-            Every building
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-ink/40">The studio</p>
+          <h2 className="mt-3 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-5xl">
+            Made layer
             <br />
-            <span className="text-teal-deep">is a print studio.</span>
+            <span className="text-teal-deep">by layer.</span>
           </h2>
-          <p className="ml-auto mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            Glowing windows across the city — each one making something special.
-            Descend into a maker building and watch toys take shape layer by layer.
+          <p className="ml-auto mt-4 max-w-sm text-base leading-relaxed text-ink/65">
+            Every piece is printed to order — careful, tactile, and finished by hand.
           </p>
         </div>
       </Section>
 
-      {/* Ch3 — PRECISION PRINT (45%–70%) */}
+      {/* Workshop / PYOT */}
       <Section offset={0.52} scrollPages={scrollPages} align="left">
         <div>
-          <Eyebrow>The Workshop</Eyebrow>
-          <h2 className="mt-4 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-6xl">
-            Print Your
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-ink/40">PYOT</p>
+          <h2 className="mt-3 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-5xl">
+            Your model.
             <br />
-            <span className="text-clay">Own Toy.</span>
+            <span className="text-clay">Our print.</span>
           </h2>
-          <p className="mt-5 max-w-md text-base leading-relaxed text-ink/70">
-            Drop in your STL / OBJ / STEP files, pick material &amp; finish, and we
-            build it layer by precise layer. From one-offs to small-batch drops.
+          <p className="mt-4 max-w-sm text-base leading-relaxed text-ink/65">
+            Share an STL, pick material and finish — we quote, print, and ship.
           </p>
-          <div className="pointer-events-auto mt-7 flex flex-wrap gap-3">
-            <a href="/pyot" className="rounded-full bg-clay px-6 py-3 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5">
-              Upload your files
-            </a>
-            <a href="/pyot" className="rounded-full border border-ink/20 px-6 py-3 text-sm font-semibold text-ink transition-transform hover:-translate-y-0.5">
-              Learn the flow
+          <div className="pointer-events-auto mt-7">
+            <a
+              href="/pyot"
+              className="inline-block rounded-full bg-clay px-6 py-3 text-sm font-semibold text-white transition-transform hover:-translate-y-0.5"
+            >
+              Start a custom print
             </a>
           </div>
         </div>
       </Section>
 
-      {/* Ch4 — DESIGNER ARCHIVE (70%–90%) */}
+      {/* Collection tease */}
       <Section offset={STOPS.archive} scrollPages={scrollPages} align="center">
         <div className="text-center">
-          <Eyebrow>The Designer Archive</Eyebrow>
-          <h2 className="mt-4 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-6xl">
-            Featured
+          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-ink/40">The collection</p>
+          <h2 className="mt-3 font-display text-4xl font-bold leading-[1] tracking-tightish text-ink md:text-5xl">
+            Ready to
             <br />
-            <span className="text-gold">Drops.</span>
+            <span className="text-gold">take home.</span>
           </h2>
-          <p className="mx-auto mt-5 max-w-lg text-base leading-relaxed text-ink/70">
-            Five exclusive series. Infinite material variations. Discover
-            limited-edition drops sculpted by our global network of visual engineers.
+          <p className="mx-auto mt-4 max-w-md text-base leading-relaxed text-ink/65">
+            Flexibles, collectibles, and limited drops — printed when you order.
           </p>
-          <div className="pointer-events-auto mx-auto mt-7 flex max-w-lg flex-wrap justify-center gap-2">
-            <Pill>F1 Monolith</Pill>
-            <Pill>Flexi Dragon</Pill>
-            <Pill>Hogwarts Keep</Pill>
-            <Pill>Caterpillar</Pill>
+          <div className="pointer-events-auto mt-7">
+            <a
+              href="/shop"
+              className="inline-block rounded-full border border-ink/20 bg-cream-50/50 px-6 py-3 text-sm font-semibold text-ink backdrop-blur transition-transform hover:-translate-y-0.5"
+            >
+              Browse shop
+            </a>
           </div>
         </div>
       </Section>
 
-      {/* Ch5 — INFINITE HORIZON (90%–100%) */}
+      {/* Close */}
       <Section offset={STOPS.universe} scrollPages={scrollPages} align="center">
         <div className="text-center">
-          <Eyebrow>The Universe</Eyebrow>
-          <h2 className="mt-4 font-display text-5xl font-bold leading-[0.95] tracking-tightish text-ink md:text-7xl">
-            Enter the
-            <br />
-            <span className="text-clay">Toying Idea World.</span>
+          <p className="font-display text-sm font-bold tracking-[0.22em] text-clay">TOYING IDEA</p>
+          <h2 className="mt-4 font-display text-5xl font-bold leading-[0.95] tracking-tightish text-ink md:text-6xl">
+            Start collecting.
           </h2>
-          <p className="mx-auto mt-6 max-w-lg text-base leading-relaxed text-ink/70 md:text-lg">
-            A world-class brand that happens to sell toys. Premium motion,
-            sculptural product, and a collection that never stops growing.
+          <p className="mx-auto mt-5 max-w-md text-base leading-relaxed text-ink/65">
+            Shop the catalog or bring your own design to life.
           </p>
-          <div className="pointer-events-auto mt-8 flex justify-center gap-3">
-            <a href="/shop" className="rounded-full bg-ink px-7 py-3 text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5">
+          <div className="pointer-events-auto mt-8 flex flex-wrap justify-center gap-3">
+            <a
+              href="/shop"
+              className="rounded-full bg-ink px-7 py-3 text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5"
+            >
               Shop now
             </a>
-            <a href="/track" className="rounded-full border border-ink/20 bg-cream-50/60 px-7 py-3 text-sm font-semibold text-ink backdrop-blur transition-transform hover:-translate-y-0.5">
-              Track an order
+            <a
+              href="/about"
+              className="rounded-full border border-ink/20 bg-cream-50/50 px-7 py-3 text-sm font-semibold text-ink backdrop-blur transition-transform hover:-translate-y-0.5"
+            >
+              About us
             </a>
           </div>
-          <p className="mt-12 text-xs font-semibold uppercase tracking-[0.3em] text-ink/40">
-            TOYING IDEA — © {new Date().getFullYear()}
-          </p>
         </div>
       </Section>
     </div>

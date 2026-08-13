@@ -8,6 +8,7 @@ import {
   COLLECTION_PRODUCTS_QUERY,
   COLLECTIONS_QUERY,
   PRODUCT_BY_HANDLE_QUERY,
+  PRODUCT_TYPES_QUERY,
   PRODUCTS_QUERY,
 } from "./queries";
 import { mapShopifyProduct, type ShopifyProductNode } from "./map-product";
@@ -66,6 +67,17 @@ function buildProductQuery(filters?: {
   return parts.join(" ");
 }
 
+const listCache = new Map<string, { at: number; items: Product[] }>();
+const LIST_TTL_MS = 60_000;
+
+function cacheKey(filters?: Record<string, string | undefined>) {
+  return JSON.stringify(filters || {});
+}
+
+export function clearShopifyProductCache() {
+  listCache.clear();
+}
+
 export async function listShopifyProducts(filters?: {
   q?: string;
   category?: string;
@@ -73,6 +85,12 @@ export async function listShopifyProducts(filters?: {
   tag?: string;
   featured?: string;
 }): Promise<Product[]> {
+  const key = cacheKey(filters);
+  const hit = listCache.get(key);
+  if (hit && Date.now() - hit.at < LIST_TTL_MS) return hit.items;
+
+  let items: Product[] = [];
+
   if (filters?.collection) {
     const handle = filters.collection
       .toLowerCase()
@@ -81,20 +99,25 @@ export async function listShopifyProducts(filters?: {
     try {
       const data = await storefrontFetch<{
         collection: { products: { nodes: ShopifyProductNode[] } } | null;
-      }>(COLLECTION_PRODUCTS_QUERY, { handle, first: 50 });
+      }>(COLLECTION_PRODUCTS_QUERY, { handle, first: 48 });
       if (data.collection?.products?.nodes?.length) {
-        return data.collection.products.nodes.map(mapShopifyProduct);
+        items = data.collection.products.nodes.map(mapShopifyProduct);
       }
     } catch {
       // fall through to products query
     }
   }
 
-  const data = await storefrontFetch<{ products: { nodes: ShopifyProductNode[] } }>(PRODUCTS_QUERY, {
-    first: 50,
-    query: buildProductQuery(filters),
-  });
-  return data.products.nodes.map(mapShopifyProduct);
+  if (!items.length) {
+    const data = await storefrontFetch<{ products: { nodes: ShopifyProductNode[] } }>(PRODUCTS_QUERY, {
+      first: 48,
+      query: buildProductQuery(filters),
+    });
+    items = data.products.nodes.map(mapShopifyProduct);
+  }
+
+  listCache.set(key, { at: Date.now(), items });
+  return items;
 }
 
 export async function getShopifyProduct(handle: string): Promise<Product | null> {
@@ -105,16 +128,27 @@ export async function getShopifyProduct(handle: string): Promise<Product | null>
 }
 
 export async function listShopifyCollections(): Promise<{ collections: string[]; categories: string[] }> {
-  const data = await storefrontFetch<{
-    collections: { nodes: Array<{ title: string; handle: string }> };
-  }>(COLLECTIONS_QUERY, { first: 50 });
+  const [collectionsData, typesData] = await Promise.all([
+    storefrontFetch<{
+      collections: { nodes: Array<{ title: string; handle: string }> };
+    }>(COLLECTIONS_QUERY, { first: 50 }),
+    storefrontFetch<{
+      products: { nodes: Array<{ productType?: string | null; tags?: string[] }> };
+    }>(PRODUCT_TYPES_QUERY, { first: 50 }),
+  ]);
 
-  const collections = data.collections.nodes.map((c) => c.title);
-  const products = await listShopifyProducts();
-  const categories = [
-    ...new Set(products.map((p) => p.category).filter(Boolean) as string[]),
-  ];
-  return { collections, categories };
+  const collections = collectionsData.collections.nodes.map((c) => c.title);
+  const categories = new Set<string>();
+  for (const p of typesData.products.nodes) {
+    const fromTag = p.tags
+      ?.find((t) => t.toLowerCase().startsWith("category:"))
+      ?.replace(/^category:/i, "")
+      .trim();
+    if (fromTag) categories.add(fromTag);
+    else if (p.productType) categories.add(p.productType.toLowerCase());
+  }
+
+  return { collections, categories: [...categories] };
 }
 
 export async function createCart(
@@ -183,12 +217,10 @@ export async function checkoutFromMerchandise(
 /**
  * Shopify often redirects cart checkout URLs through Online Store password
  * unless the headless channel query param is present.
- * @see https://community.shopify.dev/t/every-checkouturl-ends-up-with-password-page-site-under-construction/24378
  */
 export function withHeadlessCheckoutChannel(checkoutUrl: string): string {
   try {
     const url = new URL(checkoutUrl);
-    // Required so Checkout does not bounce through Online Store password → homepage.
     url.searchParams.set("channel", "headless-storefronts");
     return url.toString();
   } catch {

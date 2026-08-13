@@ -24,6 +24,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
 
       const product = await Product.findOne(filter).lean();
       if (!product) throw new Error("Product not found");
+      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
       res.status(200).json({ product });
       return;
     }
@@ -75,17 +76,50 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     if (badge) filter.badges = badge;
     if (featured === "1" || featured === "true") filter.featured = true;
 
-    const lim = Math.min(parseInt(limit, 10) || 60, 200);
+    const lim = Math.min(parseInt(limit, 10) || 48, 100);
     const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * lim;
     const sortField = sort || "-createdAt";
+
+    // List cards don't need heavy fields (full description / long image arrays).
+    const listProjection: Record<string, unknown> | undefined = all
+      ? undefined
+      : {
+          name: 1,
+          slug: 1,
+          sku: 1,
+          shortDescription: 1,
+          price: 1,
+          compareAtPrice: 1,
+          currency: 1,
+          category: 1,
+          categories: 1,
+          collectionName: 1,
+          tags: 1,
+          badges: 1,
+          thumbnail: 1,
+          images: { $slice: 1 },
+          material: 1,
+          stock: 1,
+          inStock: 1,
+          featured: 1,
+          rating: 1,
+          reviewCount: 1,
+          variants: 1,
+          pricingMode: 1,
+          active: 1,
+          createdAt: 1,
+        };
 
     let items;
     let total;
 
     if (q?.trim()) {
       const textFilter = { ...filter, $text: { $search: q.trim() } };
+      const projection = listProjection
+        ? { score: { $meta: "textScore" }, ...listProjection }
+        : { score: { $meta: "textScore" } };
       [items, total] = await Promise.all([
-        Product.find(textFilter, { score: { $meta: "textScore" } })
+        Product.find(textFilter, projection)
           .sort({ score: { $meta: "textScore" } })
           .skip(skip)
           .limit(lim)
@@ -94,11 +128,14 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       ]);
     } else {
       [items, total] = await Promise.all([
-        Product.find(filter).sort(sortField).skip(skip).limit(lim).lean(),
+        Product.find(filter, listProjection).sort(sortField).skip(skip).limit(lim).lean(),
         Product.countDocuments(filter),
       ]);
     }
 
+    if (!all) {
+      res.setHeader("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    }
     res.status(200).json({ items, total, page: Number(page), limit: lim });
     return;
   }

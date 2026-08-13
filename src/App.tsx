@@ -1,11 +1,10 @@
 import { lazy, Suspense } from "react";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { CartProvider } from "./context/CartContext";
 import { AdminAuthProvider } from "./context/AdminAuth";
 import { Layout } from "./components/Layout";
 import { Spinner } from "./components/ui";
 
-// Heavy / route-split chunks
 const Home = lazy(() => import("./pages/Home"));
 const Shop = lazy(() => import("./pages/Shop"));
 const ProductDetail = lazy(() => import("./pages/ProductDetail"));
@@ -14,10 +13,9 @@ const Checkout = lazy(() => import("./pages/Checkout"));
 const OrderConfirmed = lazy(() => import("./pages/OrderConfirmed"));
 const TrackOrder = lazy(() => import("./pages/TrackOrder"));
 const PYOT = lazy(() => import("./pages/PYOT"));
-const Gifting = lazy(() => import("./pages/Gifting"));
-const Collections = lazy(() => import("./pages/Collections"));
 const About = lazy(() => import("./pages/About"));
 const Contact = lazy(() => import("./pages/Contact"));
+const Careers = lazy(() => import("./pages/Careers"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 const AdminLogin = lazy(() => import("./pages/admin/AdminLogin"));
@@ -44,7 +42,6 @@ export default function App() {
             <Routes>
               <Route path="/" element={<Home />} />
 
-              {/* Storefront (with navbar + footer) */}
               <Route element={<Layout />}>
                 <Route path="/shop" element={<Shop />} />
                 <Route path="/product/:slug" element={<ProductDetail />} />
@@ -53,14 +50,14 @@ export default function App() {
                 <Route path="/order-confirmed" element={<OrderConfirmed />} />
                 <Route path="/track" element={<TrackOrder />} />
                 <Route path="/pyot" element={<PYOT />} />
-                <Route path="/gifting" element={<Gifting />} />
-                <Route path="/collections" element={<Collections />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
+                <Route path="/careers" element={<Careers />} />
+                <Route path="/gifting" element={<Navigate to="/shop" replace />} />
+                <Route path="/collections" element={<Navigate to="/shop" replace />} />
                 <Route path="*" element={<NotFound />} />
               </Route>
 
-              {/* Admin */}
               <Route path="/admin/login" element={<AdminLogin />} />
               <Route path="/admin" element={<AdminLayout />}>
                 <Route index element={<Dashboard />} />

@@ -29,7 +29,7 @@ export async function storefrontFetch<T>(
       "X-Shopify-Storefront-Access-Token": shopifyConfig.storefrontToken,
     },
     body: JSON.stringify({ query, variables }),
-    signal: AbortSignal.timeout(30_000),
+    signal: AbortSignal.timeout(12_000),
   });
 
   const json = (await res.json()) as GraphQLResponse<T>;

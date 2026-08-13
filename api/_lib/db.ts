@@ -25,11 +25,13 @@ export async function connectDB(): Promise<typeof mongoose> {
     cached.promise = mongoose.connect(uri, {
       dbName: process.env.MONGODB_DB || undefined,
       bufferCommands: false,
-      maxPoolSize: 10,
-      minPoolSize: 1,
-      serverSelectionTimeoutMS: 10000,
-      socketTimeoutMS: 45000,
-      connectTimeoutMS: 10000,
+      // Serverless-friendly pool: keep warm without holding too many sockets.
+      maxPoolSize: 5,
+      minPoolSize: 0,
+      maxIdleTimeMS: 30_000,
+      serverSelectionTimeoutMS: 5000,
+      socketTimeoutMS: 20_000,
+      connectTimeoutMS: 5000,
     });
   }
 

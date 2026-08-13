@@ -3,7 +3,7 @@
 A full-stack site for **TOYING IDEA**, a premium 3D-printed toy & collectibles brand:
 
 - A scroll-driven **3D landing experience** (React Three Fiber) telling the brand story.
-- A complete **storefront** — shop, product pages, cart, checkout, order tracking, PYOT, gifting, collections.
+- A complete **storefront** — shop, product pages, cart, checkout, order tracking, PYOT, about, careers, contact.
 - A backend on **Vercel serverless functions + MongoDB** (Mongoose).
 - An **admin panel** at `/admin` to track orders, manage products and review inquiries.
 
@@ -87,7 +87,7 @@ src/
 ### Routes
 
 Storefront: `/` (3D), `/shop`, `/product/:slug`, `/cart`, `/checkout`,
-`/order-confirmed`, `/track`, `/pyot`, `/gifting`, `/collections`, `/about`, `/contact`.
+`/order-confirmed`, `/track`, `/pyot`, `/about`, `/careers`, `/contact`.
 
 Admin: `/admin/login`, `/admin` (dashboard), `/admin/orders`, `/admin/products`, `/admin/inquiries`.
 
@@ -106,7 +106,7 @@ Admin: `/admin/login`, `/admin` (dashboard), `/admin/orders`, `/admin/products`,
 | `GET` | `/api/orders` | admin | List orders (filters: `status, q`) |
 | `GET` | `/api/orders/:idOrNumber?email=` | email/admin | Track / read one |
 | `PUT/PATCH` | `/api/orders/:id` | admin | Update status / payment / notes |
-| `POST` | `/api/inquiries` | – | Create PYOT / gifting / contact inquiry |
+| `POST` | `/api/inquiries` | – | Create PYOT / contact inquiry |
 | `GET` | `/api/inquiries` | admin | List inquiries |
 | `PATCH/DELETE` | `/api/inquiries/:id` | admin | Update status / delete |
 | `POST` | `/api/auth/login` | – | Admin login → JWT |

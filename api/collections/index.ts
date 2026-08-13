@@ -18,6 +18,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     .filter(Boolean)
     .sort();
 
+  res.setHeader("Cache-Control", "public, s-maxage=120, stale-while-revalidate=600");
   res.status(200).json({
     collections: (collections as string[]).filter(Boolean).sort(),
     categories,

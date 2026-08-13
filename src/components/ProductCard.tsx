@@ -14,7 +14,7 @@ export function ProductCard({ product }: { product: Product }) {
   return (
     <div className="group flex flex-col">
       <Link to={`/product/${product.slug}`} className="relative block aspect-square overflow-hidden rounded-2xl bg-cream-200">
-        <ProductImage product={product} />
+        <ProductImage product={product} width={640} />
         {product.badges && product.badges.length > 0 && (
           <div className="absolute left-3 top-3 flex flex-wrap gap-1.5">
             {product.badges.slice(0, 2).map((b) => (
