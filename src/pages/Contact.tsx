@@ -46,8 +46,8 @@ export default function Contact() {
         <div className="space-y-6">
           <div>
             <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-ink/40">Email</h4>
-            <a href="mailto:hello@toyingidea.com" className="mt-1 block text-lg font-medium text-ink hover:text-clay">
-              hello@toyingidea.com
+            <a href="mailto:admin.toyingidea@gmail.com" className="mt-1 block text-lg font-medium text-ink hover:text-clay">
+              admin.toyingidea@gmail.com
             </a>
           </div>
           <div>

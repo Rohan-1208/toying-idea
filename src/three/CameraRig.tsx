@@ -8,36 +8,23 @@ import { HERO_STUDIO } from "./scenes/PrintStudioBuilding";
 type Key = { at: number; pos: [number, number, number]; target: [number, number, number] };
 
 const [SX, SY, SZ] = HERO_STUDIO;
-const STUDIO_MID: [number, number, number] = [SX, SY + 2.4, SZ];
-const STUDIO_FLOOR: [number, number, number] = [SX, SY + 1.1, SZ];
 
-// Camera path aligned to storyboard v2.0.
-// Stages sit at Y: city=0, workshop=-40, archive=-80, universe=-120.
 const KEYS: Key[] = [
-  // Ch1 — Hero City (0%)
-  { at: 0.0, pos: [15, 11, 15], target: [0, 2, 0] },
-  { at: 0.12, pos: [14, 12, 14], target: [0, 3, 0] },
-
-  // Ch2 — The Dive: fly into the hero print studio (25% → 45%)
-  { at: 0.25, pos: [10, 14, 10], target: STUDIO_MID },
-  { at: 0.31, pos: [6, 11, 5], target: [SX, SY + 3.2, SZ] },
-  { at: 0.38, pos: [3.2, 7.8, 1.2], target: [SX, SY + 3.8, SZ] },
-  { at: 0.42, pos: [SX + 0.6, SY + 5.6, SZ + 0.9], target: STUDIO_FLOOR },
-  { at: 0.45, pos: [SX, SY + 3.1, SZ + 0.55], target: STUDIO_FLOOR },
-
-  // Ch3 — Descend into workshop (45% → 70%)
-  { at: 0.52, pos: [SX - 0.4, SY + 1.2, SZ + 2.2], target: [0, -8, 0] },
-  { at: 0.58, pos: [1, -18, 10], target: [0, -32, 0] },
-  { at: 0.65, pos: [1, -34, 12], target: [0, -38, 0] },
+  { at: 0.0, pos: [24, 16, 24], target: [0, 2.5, 0] },
+  { at: 0.1, pos: [20, 15, 20], target: [1, 3, 0] },
+  { at: 0.2, pos: [12, 10, 13], target: [SX, SY + 2.2, SZ] },
+  { at: 0.28, pos: [SX + 5.5, SY + 3.5, SZ + 6.5], target: [SX, SY + 1.6, SZ] },
+  { at: 0.34, pos: [SX + 3.2, SY + 2.6, SZ + 4.0], target: [SX, SY + 1.3, SZ] },
+  { at: 0.4, pos: [SX + 1.4, SY + 2.0, SZ + 2.4], target: [SX, SY + 1.1, SZ] },
+  { at: 0.45, pos: [SX + 0.6, SY + 1.7, SZ + 1.8], target: [SX, SY + 1.0, SZ] },
+  { at: 0.5, pos: [SX + 0.4, SY + 0.4, SZ + 2.5], target: [0, -12, 0] },
+  { at: 0.56, pos: [3, -22, 12], target: [0, -36, 0] },
+  { at: 0.62, pos: [2, -32, 13], target: [0, -38.5, 0] },
   { at: 0.7, pos: [1, -36.5, 13], target: [0, -39.5, 0] },
-
-  // Ch4 — Archive shelf sweep (70% → 90%)
-  { at: 0.78, pos: [0, -76, 14], target: [0, -79.5, 0] },
-  { at: 0.85, pos: [-2, -78, 11], target: [0, -80, 0] },
-  { at: 0.9, pos: [0.5, -78.5, 15], target: [0, -80, 0] },
-
-  // Ch5 — Infinite Horizon (90% → 100%)
-  { at: 0.95, pos: [0, -100, 22], target: [0, -105, -4] },
+  { at: 0.76, pos: [0, -72, 16], target: [0, -78, 0] },
+  { at: 0.82, pos: [-2, -78, 12], target: [0, -80, 0] },
+  { at: 0.88, pos: [0.5, -78.5, 15], target: [0, -80, 0] },
+  { at: 0.94, pos: [0, -100, 22], target: [0, -105, -4] },
   { at: 1.0, pos: [0, -119, 28], target: [0, -121, -14] },
 ];
 
@@ -55,7 +42,6 @@ function sampleKey(offset: number): { pos: THREE.Vector3; target: THREE.Vector3 
   const span = b.at - a.at;
   const raw = span <= 0 ? 0 : (o - a.at) / span;
 
-  // Use smoother easing during the studio dive segment.
   const inDive = a.at >= 0.25 && b.at <= 0.52;
   const t = inDive ? smoother(raw) : smooth(raw);
 
@@ -76,14 +62,42 @@ export function CameraRig() {
   const scroll = useScroll();
   const { camera, pointer } = useThree();
   const parallax = useRef(new THREE.Vector3());
+  const parallaxTarget = useRef(new THREE.Vector3());
+  const smoothedPos = useRef(new THREE.Vector3(24, 16, 24));
+  const smoothedTarget = useRef(new THREE.Vector3(0, 2.5, 0));
+  const primed = useRef(false);
 
-  useFrame(() => {
-    const { pos, target } = sampleKey(scroll.offset);
+  useFrame((_, dt) => {
+    const o = scroll.offset;
+    const { pos, target } = sampleKey(o);
 
-    // Tiny pointer parallax only — no extra lerp lag on scroll position.
-    parallax.current.set(pointer.x * 0.6, pointer.y * 0.4, 0);
-    camera.position.copy(pos).add(parallax.current);
-    curTarget.copy(target);
+    // Opening: hard-lock camera — no lerp hunting, no pointer sway
+    if (o < 0.02) {
+      smoothedPos.current.copy(pos);
+      smoothedTarget.current.copy(target);
+      parallax.current.set(0, 0, 0);
+      primed.current = true;
+      camera.position.copy(pos);
+      curTarget.copy(target);
+      camera.lookAt(curTarget);
+      return;
+    }
+
+    const alpha = 1 - Math.exp(-dt * (o < 0.12 ? 18 : 14));
+    if (!primed.current) {
+      smoothedPos.current.copy(pos);
+      smoothedTarget.current.copy(target);
+      primed.current = true;
+    } else {
+      smoothedPos.current.lerp(pos, alpha);
+      smoothedTarget.current.lerp(target, alpha);
+    }
+
+    const paraAmt = Math.min(1, Math.max(0, (o - 0.04) / 0.08));
+    parallaxTarget.current.set(pointer.x * 0.35 * paraAmt, pointer.y * 0.22 * paraAmt, 0);
+    parallax.current.lerp(parallaxTarget.current, 1 - Math.exp(-dt * 5));
+    camera.position.copy(smoothedPos.current).add(parallax.current);
+    curTarget.copy(smoothedTarget.current);
     camera.lookAt(curTarget);
   });
 

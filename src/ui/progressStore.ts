@@ -7,7 +7,7 @@ const listeners = new Set<() => void>();
 export const progressStore = {
   set(next: number) {
     // Throttle notifications to meaningful changes to limit React re-renders.
-    if (Math.abs(next - offset) < 0.004) return;
+    if (Math.abs(next - offset) < 0.006) return;
     offset = next;
     listeners.forEach((l) => l());
   },

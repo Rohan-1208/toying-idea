@@ -41,7 +41,7 @@ export function isAdminRequest(req: VercelRequest): boolean {
 
 // Validate admin credentials. Prefer ADMIN_PASSWORD_HASH (bcrypt) in production.
 export function checkAdminCredentials(email: string, password: string): boolean {
-  const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin@toyingidea.com";
+  const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "admin.toyingidea@gmail.com";
   if (email.trim().toLowerCase() !== ADMIN_EMAIL.toLowerCase()) return false;
 
   const hash = process.env.ADMIN_PASSWORD_HASH;

@@ -50,7 +50,7 @@ export function PrinterWorkshop() {
     }
     if (glow.current) {
       const active = p > 0.02 && p < 0.98 ? 1 : 0.15;
-      glow.current.emissiveIntensity = 0.6 + Math.sin(state.clock.elapsedTime * 8) * 0.25 * active;
+      glow.current.emissiveIntensity = 0.55 + Math.sin(state.clock.elapsedTime * 2.5) * 0.1 * active;
     }
   });
 

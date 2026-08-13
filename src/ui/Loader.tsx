@@ -10,8 +10,8 @@ export function Loader() {
   const [hidden, setHidden] = useState(false);
 
   useEffect(() => {
-    const fadeMs = fast ? 500 : 1100;
-    const hideMs = fast ? 900 : 1900;
+    const fadeMs = fast ? 700 : 1400;
+    const hideMs = fast ? 1100 : 2200;
     const t = setTimeout(() => setGone(true), fadeMs);
     const t2 = setTimeout(() => setHidden(true), hideMs);
     return () => {

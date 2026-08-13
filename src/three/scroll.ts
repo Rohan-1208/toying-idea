@@ -1,6 +1,6 @@
-// Storyboard v2.0 — Tactile Scroll Journey
-//   0.00 – 0.25  Hero City
-//   0.25 – 0.45  The Dive / Print Studio
+// Storyboard v2.1 — Toying City
+//   0.00 – 0.25  Enter Toying City (every home prints a custom toy)
+//   0.25 – 0.45  Dive into a home / print studio
 //   0.45 – 0.70  Precision Print (Workshop)
 //   0.70 – 0.90  Designer Archive (Collection)
 //   0.90 – 1.00  Infinite Horizon

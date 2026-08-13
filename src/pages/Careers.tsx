@@ -57,7 +57,7 @@ export default function Careers() {
                 <p className="mt-2 max-w-md text-sm leading-relaxed text-ink/60">{role.blurb}</p>
               </div>
               <a
-                href={`mailto:hello@toyingidea.com?subject=${encodeURIComponent(`Application: ${role.title}`)}`}
+                href={`mailto:admin.toyingidea@gmail.com?subject=${encodeURIComponent(`Application: ${role.title}`)}`}
                 className="shrink-0 rounded-full bg-ink px-5 py-2.5 text-center text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5"
               >
                 Apply
@@ -70,8 +70,8 @@ export default function Careers() {
           <h3 className="font-display text-2xl font-bold">General applications</h3>
           <p className="mx-auto mt-3 max-w-md text-sm text-cream-50/70">
             Send a short note and portfolio / resume to{" "}
-            <a href="mailto:hello@toyingidea.com" className="underline decoration-clay underline-offset-2">
-              hello@toyingidea.com
+            <a href="mailto:admin.toyingidea@gmail.com" className="underline decoration-clay underline-offset-2">
+              admin.toyingidea@gmail.com
             </a>
           </p>
           <div className="mt-6 flex justify-center gap-3">

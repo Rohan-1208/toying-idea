@@ -5,11 +5,11 @@ import { BrandLogo } from "../components/BrandLogo";
 import { STOPS } from "../three/scroll";
 
 const CHAPTERS = [
-  { label: "Start", offset: STOPS.hero },
-  { label: "Studio", offset: 0.31 },
-  { label: "PYOT", offset: STOPS.workshop },
+  { label: "City", offset: STOPS.hero },
+  { label: "Homes", offset: 0.22 },
+  { label: "Print", offset: 0.48 },
   { label: "Shop", offset: STOPS.archive },
-  { label: "Begin", offset: STOPS.universe },
+  { label: "Join", offset: STOPS.universe },
 ];
 
 function useProgress() {
@@ -89,7 +89,7 @@ export function Chrome() {
 
       <div
         className="absolute bottom-8 left-1/2 flex -translate-x-1/2 flex-col items-center gap-2 transition-opacity duration-500"
-        style={{ opacity: offset < 0.04 ? 1 : 0 }}
+        style={{ opacity: offset < 0.05 ? 1 : 0 }}
       >
         <span className="text-[10px] font-semibold uppercase tracking-[0.28em] text-ink/45">Scroll</span>
         <span className="flex h-8 w-5 justify-center rounded-full border border-ink/25 pt-1.5">
