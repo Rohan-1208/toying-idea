@@ -27,3 +27,12 @@ image-export/
 *.njsproj
 *.sln
 *.sw?
+
+# Local Instagram media dump + convert cache (binaries)
+Media/
+media/
+.media-convert/
+data/media-catalog.json
+data/media-import-report.json
+data/media-catalog-retry.json
+data/media-import.log

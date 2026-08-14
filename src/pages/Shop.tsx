@@ -5,13 +5,17 @@ import type { Product } from "../lib/types";
 import { ProductCard } from "../components/ProductCard";
 import { PageHeader } from "../components/Layout";
 import { Spinner } from "../components/ui";
+import { SHOP_CATEGORIES } from "../lib/shopCategories";
 
-const CATEGORIES = [
+/** Curated Shopify collections (manual product sets). */
+const SHOP_COLLECTIONS = [
   { id: "", label: "All" },
-  { id: "toys", label: "Toys" },
-  { id: "fidget", label: "Fidget" },
-  { id: "collectibles", label: "Collectibles" },
-];
+  { id: "home-decor", label: "Home Decor" },
+  { id: "character-figures", label: "Figures" },
+  { id: "keychains-charms", label: "Keychains" },
+  { id: "festive-seasonal", label: "Festive" },
+  { id: "custom-personal", label: "Custom" },
+] as const;
 
 const SORTS = [
   { id: "-createdAt", label: "Newest" },
@@ -28,6 +32,7 @@ export default function Shop() {
   const [search, setSearch] = useState(params.get("q") || "");
 
   const category = params.get("category") || "";
+  const collection = params.get("collection") || "";
   const sort = params.get("sort") || "-createdAt";
   const q = params.get("q") || "";
 
@@ -36,7 +41,11 @@ export default function Shop() {
     setLoading(true);
     setError("");
     api.products
-      .list({ category: category || undefined, q: q || undefined })
+      .list({
+        category: category || undefined,
+        collection: collection || undefined,
+        q: q || undefined,
+      })
       .then((res) => {
         if (active) setItems(res.items);
       })
@@ -47,7 +56,7 @@ export default function Shop() {
     return () => {
       active = false;
     };
-  }, [category, q]);
+  }, [category, collection, q]);
 
   const sorted = useMemo(() => {
     const arr = [...items];
@@ -67,59 +76,98 @@ export default function Shop() {
     const next = new URLSearchParams(params);
     if (value) next.set(key, value);
     else next.delete(key);
+    // Collection and category are alternate lenses — clear the other when one is set.
+    if (key === "collection" && value) next.delete("category");
+    if (key === "category" && value) next.delete("collection");
     setParams(next, { replace: true });
   };
+
+  const activeCollection = SHOP_COLLECTIONS.find((c) => c.id === collection);
 
   return (
     <div className="pb-16">
       <PageHeader
         eyebrow="Shop"
-        title="The collection"
-        subtitle="Printed to order. Built to keep."
+        title={activeCollection?.id ? activeCollection.label : "The collection"}
+        subtitle={
+          activeCollection?.id
+            ? "A curated set of related prints — pick one or collect the set."
+            : "Printed to order. Built to keep."
+        }
       />
 
       <div className="mx-auto max-w-7xl px-5 md:px-8">
-        <div className="sticky top-[68px] z-30 -mx-5 mb-10 flex flex-wrap items-center gap-3 border-b border-ink/10 bg-cream/90 px-5 py-4 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
-          <div className="flex flex-wrap gap-1.5">
-            {CATEGORIES.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => update("category", c.id)}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
-                  category === c.id ? "bg-ink text-cream-50" : "bg-ink/5 text-ink/55 hover:bg-ink/10"
-                }`}
-              >
-                {c.label}
-              </button>
-            ))}
+        <div className="sticky top-[68px] z-30 -mx-5 mb-10 space-y-3 border-b border-ink/10 bg-cream/90 px-5 py-4 backdrop-blur md:mx-0 md:rounded-2xl md:border md:px-5">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink/40">
+              Collections
+            </span>
+            <div className="flex max-w-full flex-wrap gap-1.5">
+              {SHOP_COLLECTIONS.map((c) => (
+                <button
+                  key={c.id || "all-collections"}
+                  type="button"
+                  onClick={() => update("collection", c.id)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    collection === c.id
+                      ? "bg-clay text-white"
+                      : "bg-ink/5 text-ink/55 hover:bg-ink/10"
+                  }`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                update("q", search);
-              }}
-              className="relative"
-            >
-              <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search…"
-                className="w-36 rounded-full border border-ink/15 bg-white/70 px-4 py-1.5 text-sm outline-none focus:border-clay md:w-48"
-              />
-            </form>
-            <select
-              value={sort}
-              onChange={(e) => update("sort", e.target.value)}
-              className="rounded-full border border-ink/15 bg-white/70 px-3 py-1.5 text-sm outline-none focus:border-clay"
-            >
-              {SORTS.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.label}
-                </option>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-ink/40">
+              Type
+            </span>
+            <div className="flex max-w-full flex-wrap gap-1.5">
+              {SHOP_CATEGORIES.map((c) => (
+                <button
+                  key={c.id || "all"}
+                  type="button"
+                  onClick={() => update("category", c.id)}
+                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors ${
+                    !collection && category === c.id
+                      ? "bg-ink text-cream-50"
+                      : "bg-ink/5 text-ink/55 hover:bg-ink/10"
+                  }`}
+                >
+                  {c.label}
+                </button>
               ))}
-            </select>
+            </div>
+
+            <div className="ml-auto flex items-center gap-2">
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  update("q", search);
+                }}
+                className="relative"
+              >
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-36 rounded-full border border-ink/15 bg-white/70 px-4 py-1.5 text-sm outline-none focus:border-clay md:w-48"
+                />
+              </form>
+              <select
+                value={sort}
+                onChange={(e) => update("sort", e.target.value)}
+                className="rounded-full border border-ink/15 bg-white/70 px-3 py-1.5 text-sm outline-none focus:border-clay"
+              >
+                {SORTS.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 

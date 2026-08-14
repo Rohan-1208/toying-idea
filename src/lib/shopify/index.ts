@@ -13,6 +13,7 @@ import {
 } from "./queries";
 import { mapShopifyProduct, type ShopifyProductNode } from "./map-product";
 import type { Product } from "../types";
+import { productMatchesShopCategory, shopifyQueryForCategory } from "../shopCategories";
 
 export type ShopifyCart = {
   id: string;
@@ -58,13 +59,17 @@ function buildProductQuery(filters?: {
   tag?: string;
   featured?: string;
 }): string | undefined {
-  const parts: string[] = ["status:active"];
+  const parts: string[] = ["available_for_sale:true"];
   if (filters?.q) parts.push(`title:*${filters.q}*`);
   if (filters?.tag) parts.push(`tag:${filters.tag}`);
-  if (filters?.category) parts.push(`tag:category:${filters.category}`);
+  if (filters?.category) {
+    const catQuery = shopifyQueryForCategory(filters.category);
+    if (catQuery) parts.push(`(${catQuery})`);
+    else parts.push(`tag:category:${filters.category}`);
+  }
   if (filters?.collection) parts.push(`tag:collection:${filters.collection}`);
   if (filters?.featured === "1" || filters?.featured === "true") parts.push("tag:featured");
-  return parts.join(" ");
+  return parts.join(" AND ");
 }
 
 const listCache = new Map<string, { at: number; items: Product[] }>();
@@ -110,10 +115,24 @@ export async function listShopifyProducts(filters?: {
 
   if (!items.length) {
     const data = await storefrontFetch<{ products: { nodes: ShopifyProductNode[] } }>(PRODUCTS_QUERY, {
-      first: 48,
+      first: 100,
       query: buildProductQuery(filters),
     });
     items = data.products.nodes.map(mapShopifyProduct);
+  }
+
+  // If type/tag search returned nothing, fall back to full list + local filter.
+  if (filters?.category && !items.length) {
+    const data = await storefrontFetch<{ products: { nodes: ShopifyProductNode[] } }>(PRODUCTS_QUERY, {
+      first: 100,
+      query: buildProductQuery({ ...filters, category: undefined }),
+    });
+    items = data.products.nodes.map(mapShopifyProduct);
+  }
+
+  // Client-side safety net: Storefront tag/type search can miss mixed casing.
+  if (filters?.category) {
+    items = items.filter((p) => productMatchesShopCategory(filters.category!, p));
   }
 
   listCache.set(key, { at: Date.now(), items });
