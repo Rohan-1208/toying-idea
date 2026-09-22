@@ -3,6 +3,13 @@ import { withApi, methodNotAllowed } from "./_lib/http.js";
 import { getSupabase } from "./_lib/supabase.js";
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
+  if ((req.query.resource as string) === "uploads" || (req.url || "").includes("/uploads/")) {
+    res.status(410).json({
+      error: "GridFS uploads are retired. Images are stored in Supabase Storage (product-images bucket).",
+    });
+    return;
+  }
+
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
 
   const hasUrl = Boolean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);

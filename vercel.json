@@ -22,12 +22,24 @@
       "destination": "/api/orders?id=:id"
     },
     {
-      "source": "/api/studio/drafts/:id",
-      "destination": "/api/studio/drafts?id=:id"
+      "source": "/api/inquiries/:id",
+      "destination": "/api/inquiries?id=:id"
+    },
+    {
+      "source": "/api/uploads/:id",
+      "destination": "/api/health?resource=uploads"
     },
     {
       "source": "/api/studio/print-jobs/:id",
-      "destination": "/api/studio/print-jobs?id=:id"
+      "destination": "/api/studio?resource=print-jobs&id=:id"
+    },
+    {
+      "source": "/api/studio/drafts/:id",
+      "destination": "/api/studio?resource=drafts&id=:id"
+    },
+    {
+      "source": "/api/studio/:resource",
+      "destination": "/api/studio?resource=:resource"
     },
     {
       "source": "/((?!api/|src/|@|node_modules/|assets/)(?!.*\\.).*)",
