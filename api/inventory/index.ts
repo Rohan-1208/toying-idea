@@ -1,45 +1,33 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed, readBody } from "../_lib/http.js";
-import { connectDB } from "../_lib/db.js";
-import { Product } from "../_lib/models/Product.js";
-import { InventoryMovement } from "../_lib/models/InventoryMovement.js";
+import { getSupabase } from "../_lib/supabase.js";
+import { mapMovement, mapProduct, throwIf } from "../_lib/map.js";
 import { verifyAdmin } from "../_lib/auth.js";
 import { adjustStock } from "../_lib/inventory.js";
-import { positiveInt } from "../_lib/validate.js";
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
-  await connectDB();
   verifyAdmin(req);
+  const sb = getSupabase();
 
   if (req.method === "GET") {
-    const [lowStock, recentMovements, summary] = await Promise.all([
-      Product.find({
-        active: true,
-        $expr: { $lte: ["$stock", "$lowStockThreshold"] },
-      })
-        .sort({ stock: 1 })
-        .limit(50)
-        .lean(),
-      InventoryMovement.find({}).sort("-createdAt").limit(30).lean(),
-      Product.aggregate([
-        { $match: { active: true } },
-        {
-          $group: {
-            _id: null,
-            totalSkus: { $sum: 1 },
-            totalUnits: { $sum: "$stock" },
-            outOfStock: {
-              $sum: { $cond: [{ $lte: ["$stock", 0] }, 1, 0] },
-            },
-          },
-        },
-      ]),
-    ]);
-
+    const { data: products, error } = await sb.from("products").select("*").eq("active", true);
+    throwIf(error);
+    const mapped = (products || []).map(mapProduct);
+    const lowStock = mapped.filter((p) => (p.stock ?? 0) <= (p.lowStockThreshold ?? 5)).sort((a, b) => (a.stock ?? 0) - (b.stock ?? 0));
+    const { data: movements, error: mErr } = await sb
+      .from("inventory_movements")
+      .select("*")
+      .order("created_at", { ascending: false })
+      .limit(30);
+    throwIf(mErr);
     res.status(200).json({
-      summary: summary[0] || { totalSkus: 0, totalUnits: 0, outOfStock: 0 },
-      lowStock,
-      recentMovements,
+      summary: {
+        totalSkus: mapped.length,
+        totalUnits: mapped.reduce((s, p) => s + (p.stock ?? 0), 0),
+        outOfStock: mapped.filter((p) => !p.inStock || (p.stock ?? 0) <= 0).length,
+      },
+      lowStock: lowStock.slice(0, 50),
+      recentMovements: (movements || []).map(mapMovement),
     });
     return;
   }
@@ -53,34 +41,33 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       note?: string;
     }>(req);
 
-    const note = body.note?.trim() || "";
-    let product = null;
+    let productId = body.productId;
+    if (!productId && body.slug) {
+      const { data, error } = await sb.from("products").select("*").eq("slug", body.slug.toLowerCase()).maybeSingle();
+      throwIf(error);
+      if (!data) throw new Error("Product not found");
+      productId = data.id;
+      if (typeof body.stock === "number") {
+        body.delta = body.stock - Number(data.stock);
+      }
+    } else if (productId && typeof body.stock === "number") {
+      const { data, error } = await sb.from("products").select("stock").eq("id", productId).maybeSingle();
+      throwIf(error);
+      if (!data) throw new Error("Product not found");
+      body.delta = body.stock - Number(data.stock);
+    }
 
-    if (body.productId) {
-      product = await Product.findById(body.productId);
-    } else if (body.slug) {
-      product = await Product.findOne({ slug: body.slug.toLowerCase() });
-    }
-    if (!product) throw new Error("Product not found");
-
-    let delta = 0;
-    if (typeof body.stock === "number") {
-      delta = body.stock - (product.stock ?? 0);
-    } else {
-      delta = Number(body.delta);
-    }
-    if (!Number.isFinite(delta) || delta === 0) {
-      throw new Error("Provide a non-zero delta or target stock level");
-    }
+    if (!productId) throw new Error("Product not found");
+    const delta = Number(body.delta);
+    if (!Number.isFinite(delta) || delta === 0) throw new Error("Provide a non-zero delta or target stock level");
 
     const updated = await adjustStock({
-      productId: product._id,
+      productId,
       delta,
       reason: "adjustment",
-      note: note || "Manual stock adjustment",
+      note: body.note?.trim() || "Manual stock adjustment",
       actor: "admin",
     });
-
     res.status(200).json({ product: updated });
     return;
   }

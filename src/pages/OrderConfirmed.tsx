@@ -1,12 +1,14 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Button } from "../components/ui";
-import { isShopifyConfigured, shopifyConfig } from "../lib/shopify/config";
 
 export default function OrderConfirmed() {
-  const shopifyReady = isShopifyConfigured();
-  const accountUrl = shopifyReady
-    ? `https://${shopifyConfig.domain}/account`
-    : undefined;
+  const [params] = useSearchParams();
+  const order = params.get("order") || "";
+  const email = params.get("email") || "";
+  const trackHref =
+    order && email
+      ? `/track?order=${encodeURIComponent(order)}&email=${encodeURIComponent(email)}`
+      : "/track";
 
   return (
     <div className="mx-auto max-w-2xl px-5 py-20 text-center md:py-28">
@@ -16,20 +18,18 @@ export default function OrderConfirmed() {
         </svg>
       </div>
       <h1 className="mt-6 font-display text-4xl font-bold tracking-tightish text-ink">Thanks for your order</h1>
+      {order ? (
+        <p className="mt-3 font-display text-xl font-semibold text-ink">{order}</p>
+      ) : null}
       <p className="mt-3 text-ink/60">
-        If you completed Shopify Checkout, a confirmation email is on its way with your order details and
-        tracking link.
+        Cash on delivery. We’ll print your piece in PLA and ship from Patiala. Keep this order number to track
+        status.
       </p>
 
       <div className="mt-8 flex flex-wrap justify-center gap-3">
-        <Button to="/track" variant="dark">
-          Track order help
+        <Button to={trackHref} variant="dark">
+          Track order
         </Button>
-        {accountUrl && (
-          <Button href={accountUrl} target="_blank" rel="noreferrer" variant="secondary">
-            Shopify account
-          </Button>
-        )}
         <Button to="/shop" variant="secondary">
           Continue shopping
         </Button>

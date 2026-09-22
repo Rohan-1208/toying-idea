@@ -1,10 +1,4 @@
-import type { Product, Order, Inquiry, InventoryMovement, Review } from "./types";
-import { isShopifyConfigured, shopifyConfig } from "./shopify/config";
-import {
-  getShopifyProduct,
-  listShopifyCollections,
-  listShopifyProducts,
-} from "./shopify";
+import type { Product, Order, Inquiry, InventoryMovement, Review, StudioDraft, PrintJob } from "./types";
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, "") || "/api";
 
@@ -17,14 +11,6 @@ export const auth = {
   isAuthed: () => !!localStorage.getItem(TOKEN_KEY),
 };
 
-function requireShopify() {
-  if (!isShopifyConfigured()) {
-    throw new Error(
-      "Shopify is not configured. Set VITE_SHOPIFY_STORE_DOMAIN and VITE_SHOPIFY_STOREFRONT_TOKEN."
-    );
-  }
-}
-
 async function request<T>(
   path: string,
   opts: {
@@ -32,9 +18,10 @@ async function request<T>(
     body?: unknown;
     admin?: boolean;
     query?: Record<string, string | number | boolean | undefined>;
+    timeoutMs?: number;
   } = {}
 ): Promise<T> {
-  const { method = "GET", body, admin, query } = opts;
+  const { method = "GET", body, admin, query, timeoutMs = 20_000 } = opts;
   const url = new URL(`${BASE}${path}`, window.location.origin);
   if (query) {
     for (const [k, v] of Object.entries(query)) {
@@ -51,44 +38,58 @@ async function request<T>(
     method,
     headers,
     body: body ? JSON.stringify(body) : undefined,
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: Record<string, unknown> = {};
+  try {
+    data = text ? (JSON.parse(text) as Record<string, unknown>) : {};
+  } catch {
+    data = { error: text || `Request failed (${res.status})` };
+  }
   if (!res.ok) {
     if (res.status === 401) auth.clear();
-    throw new Error(data.error || `Request failed (${res.status})`);
+    throw new Error((data.error as string) || `Request failed (${res.status})`);
   }
   return data as T;
 }
 
 export const api = {
   products: {
-    /** Catalog is Shopify-only — no Mongo / sample fallback. */
-    async list(query?: Record<string, string | undefined>): Promise<{ items: Product[] }> {
-      requireShopify();
-      const items = await listShopifyProducts(query);
-      return { items };
-    },
-    async get(slug: string): Promise<{ product: Product | null }> {
-      requireShopify();
-      const product = await getShopifyProduct(slug);
-      return { product };
-    },
-    adminList: async () => {
-      requireShopify();
-      const items = await listShopifyProducts();
-      return { items };
-    },
+    list: (query?: Record<string, string | undefined>) =>
+      request<{ items: Product[]; total: number }>("/products", { query }),
+    get: (slug: string) => request<{ product: Product }>(`/products/${encodeURIComponent(slug)}`),
+    adminList: () =>
+      request<{ items: Product[]; total: number }>("/products", {
+        query: { all: 1, limit: 100 },
+        admin: true,
+      }),
+    adminUpdate: (id: string, body: Partial<Product>) =>
+      request<{ product: Product }>(`/products/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        body,
+        admin: true,
+      }),
   },
 
   orders: {
-    /** Deprecated for storefront — checkout goes through Shopify. */
-    create: (_body: unknown) =>
-      Promise.reject(new Error("Checkout is handled by Shopify. Use Place order instead.")),
+    create: (body: {
+      customer: { name: string; email: string; phone: string };
+      shippingAddress: {
+        line1: string;
+        line2?: string;
+        city: string;
+        state: string;
+        pincode: string;
+        country?: string;
+      };
+      items: Array<{ productId?: string; slug: string; qty: number; options?: Record<string, string> }>;
+      paymentMethod?: string;
+      notes?: string;
+    }) => request<{ order: Order }>("/orders", { method: "POST", body, timeoutMs: 30_000 }),
     track: (idOrNumber: string, email: string) =>
-      request<{ order: Order }>(`/orders/${idOrNumber}`, { query: { email } }),
-    trackShopify: (orderNumber: string, email: string) =>
+      request<{ order: Order }>(`/orders/${encodeURIComponent(idOrNumber)}`, { query: { email } }),
+    trackPublic: (orderNumber: string, email: string) =>
       request<{ order: import("./types").ShopifyTrackedOrder }>("/track", {
         method: "POST",
         body: { orderNumber, email },
@@ -137,6 +138,7 @@ export const api = {
       lowStock: number;
       revenue: number;
       byStatus: Record<string, number>;
+      pendingDrafts: number;
       recentOrders: Order[];
     }>("/admin/stats", { admin: true }),
 
@@ -151,15 +153,9 @@ export const api = {
       request<{ product: Product }>("/inventory", { method: "POST", body, admin: true }),
   },
 
-  health: () => request<{ ok: boolean; db: string; dbError?: string }>("/health"),
+  health: () => request<{ ok: boolean; db: string; provider?: string; dbError?: string }>("/health"),
 
-  collections: async () => {
-    requireShopify();
-    return listShopifyCollections();
-  },
-
-  shopifyAdminUrl: () =>
-    shopifyConfig.domain ? `https://${shopifyConfig.domain}/admin/products` : "https://admin.shopify.com",
+  collections: () => request<{ collections: string[]; categories: string[] }>("/collections"),
 
   reviews: {
     list: (slug: string) =>
@@ -170,6 +166,77 @@ export const api = {
       request<{ review: Review; summary: { average: number; count: number } }>("/reviews", {
         method: "POST",
         body,
+      }),
+  },
+
+  studio: {
+    upload: (file: { filename: string; contentType: string; data: string }) =>
+      request<{ url: string }>("/studio/upload", { method: "POST", body: file, admin: true, timeoutMs: 60_000 }),
+    catalogGenerate: (body: { photos: string[]; notes?: string; extraImages?: number }) =>
+      request<{ draft: StudioDraft }>("/studio/catalog", {
+        method: "POST",
+        body,
+        admin: true,
+        timeoutMs: 120_000,
+      }),
+    drafts: (status = "pending") =>
+      request<{ items: StudioDraft[] }>("/studio/drafts", { query: { status }, admin: true }),
+    patchDraft: (id: string, body: { payload?: Record<string, unknown>; title?: string }) =>
+      request<{ draft: StudioDraft }>("/studio/drafts", {
+        method: "PATCH",
+        body,
+        query: { id },
+        admin: true,
+      }),
+    approveDraft: (id: string) =>
+      request<{ draft: StudioDraft; result?: unknown }>("/studio/drafts", {
+        method: "POST",
+        query: { id, action: "approve" },
+        admin: true,
+        timeoutMs: 30_000,
+      }),
+    rejectDraft: (id: string) =>
+      request<{ draft: StudioDraft }>("/studio/drafts", {
+        method: "POST",
+        query: { id, action: "reject" },
+        admin: true,
+      }),
+    printJobs: () => request<{ items: PrintJob[] }>("/studio/print-jobs", { admin: true }),
+    patchPrintJob: (id: string, body: { status?: string; printer?: string; dueAt?: string; notes?: string }) =>
+      request<{ job: PrintJob }>("/studio/print-jobs", {
+        method: "PATCH",
+        body,
+        query: { id },
+        admin: true,
+      }),
+    inboxDraft: (inquiryId: string) =>
+      request<{ draft: StudioDraft }>("/studio/inbox", {
+        method: "POST",
+        body: { inquiryId, action: "draft" },
+        admin: true,
+        timeoutMs: 60_000,
+      }),
+    inboxSend: (draftId: string) =>
+      request<{ draft: StudioDraft }>("/studio/inbox", {
+        method: "POST",
+        body: { action: "send", draftId },
+        admin: true,
+      }),
+    marketing: (body: { productName?: string; trend?: string; extraImages?: number }) =>
+      request<{ draft: StudioDraft }>("/studio/marketing", {
+        method: "POST",
+        body,
+        admin: true,
+        timeoutMs: 120_000,
+      }),
+    websiteTickets: () =>
+      request<{ items: Array<Record<string, unknown>> }>("/studio/website", { admin: true }),
+    websiteRequest: (requestText: string) =>
+      request<{ draft: StudioDraft }>("/studio/website", {
+        method: "POST",
+        body: { request: requestText },
+        admin: true,
+        timeoutMs: 60_000,
       }),
   },
 };

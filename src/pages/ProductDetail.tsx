@@ -26,22 +26,29 @@ export default function ProductDetail() {
     let active = true;
     setLoading(true);
     setQty(1);
-    api.products.get(slug).then((res) => {
-      if (!active) return;
-      const p = res.product;
-      setProduct(p);
-      const variant = p ? resolveVariant(p, "") : undefined;
-      setVariantId(variant?.id || "");
-      setFinish(p?.finishes?.[0] || variant?.finish || "");
-      setColor(p?.colors?.[0] || "");
-      setLoading(false);
-      if (p) {
-        const cat = p.categories?.[0] || p.category;
-        api.products
-          .list({ category: cat })
-          .then((r) => active && setRelated(r.items.filter((item) => item.slug !== slug).slice(0, 4)));
-      }
-    });
+    api.products
+      .get(slug)
+      .then((res) => {
+        if (!active) return;
+        const p = res.product;
+        setProduct(p);
+        const variant = p ? resolveVariant(p, "") : undefined;
+        setVariantId(variant?.id || "");
+        setFinish(p?.finishes?.[0] || variant?.finish || "");
+        setColor(p?.colors?.[0] || "");
+        setLoading(false);
+        if (p) {
+          const cat = p.categories?.[0] || p.category;
+          api.products
+            .list({ category: cat })
+            .then((r) => active && setRelated(r.items.filter((item) => item.slug !== slug).slice(0, 4)));
+        }
+      })
+      .catch(() => {
+        if (!active) return;
+        setProduct(null);
+        setLoading(false);
+      });
     return () => {
       active = false;
     };

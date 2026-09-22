@@ -4,9 +4,14 @@ import { Spinner } from "../../components/ui";
 
 const NAV = [
   { to: "/admin", label: "Dashboard", end: true },
+  { to: "/admin/catalog", label: "Catalog" },
+  { to: "/admin/floor", label: "Floor" },
+  { to: "/admin/inquiries", label: "Inbox" },
+  { to: "/admin/marketing", label: "Marketing" },
+  { to: "/admin/website", label: "Website" },
+  { to: "/admin/approvals", label: "Approvals" },
   { to: "/admin/orders", label: "Orders" },
   { to: "/admin/products", label: "Products" },
-  { to: "/admin/inquiries", label: "Inquiries" },
 ];
 
 export default function AdminLayout() {
@@ -26,7 +31,6 @@ export default function AdminLayout() {
 
   return (
     <div className="flex min-h-screen bg-cream-100">
-      {/* Sidebar */}
       <aside className="hidden w-60 shrink-0 flex-col border-r border-ink/10 bg-cream px-4 py-6 md:flex">
         <Link to="/" className="mb-8 flex items-center gap-2 px-2">
           <span className="grid h-8 w-8 place-items-center rounded-lg bg-ink text-cream-50">
@@ -38,18 +42,9 @@ export default function AdminLayout() {
             TOYING<span className="text-clay"> IDEA</span>
           </span>
         </Link>
-        <div className="mb-4 rounded-xl bg-ink/5 px-3 py-2 text-[11px] leading-snug text-ink/55">
-          Products, orders & payments now live in{" "}
-          <a
-            href="https://admin.shopify.com/store/vercel-store-dec63599"
-            target="_blank"
-            rel="noreferrer"
-            className="font-semibold text-clay-deep underline"
-          >
-            Shopify Admin
-          </a>
-          . This panel is inquiries-only going forward.
-        </div>
+        <p className="mb-4 rounded-xl bg-ink/5 px-3 py-2 text-[11px] leading-snug text-ink/55">
+          Studio lives on live catalog data. Approve drafts before they go public. Checkout is COD only.
+        </p>
         <nav className="flex flex-col gap-1">
           {NAV.map((n) => (
             <NavLink
@@ -74,11 +69,12 @@ export default function AdminLayout() {
         </div>
       </aside>
 
-      {/* Mobile top nav */}
       <div className="flex flex-1 flex-col">
         <div className="flex items-center justify-between border-b border-ink/10 bg-cream px-4 py-3 md:hidden">
-          <span className="font-display font-bold text-ink">Admin</span>
-          <button onClick={logout} className="text-sm font-medium text-clay">Sign out</button>
+          <span className="font-display font-bold text-ink">Studio</span>
+          <button onClick={logout} className="text-sm font-medium text-clay">
+            Sign out
+          </button>
         </div>
         <div className="flex gap-1 overflow-x-auto border-b border-ink/10 bg-cream px-4 py-2 md:hidden">
           {NAV.map((n) => (

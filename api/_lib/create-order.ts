@@ -1,9 +1,9 @@
-import type { Types } from "mongoose";
-import { Order } from "./models/Order.js";
-import { Product } from "./models/Product.js";
+import { getSupabase } from "./supabase.js";
+import { mapOrder, mapProduct, throwIf } from "./map.js";
+import { nextOrderNumber } from "./order-number.js";
 import { recordSaleLines, restoreSaleLines } from "./inventory.js";
 import { resolveVariantLabel, resolveVariantPrice } from "./product-utils.js";
-import { nextOrderNumber } from "./order-number.js";
+import { sendOrderConfirmationEmail } from "./mail.js";
 import {
   normalizeEmail,
   positiveInt,
@@ -37,35 +37,44 @@ export async function createStoreOrder(body: {
     sanitizeRecord(body.shippingAddress) as Record<string, string>
   );
   const items = body.items;
-  const paymentMethod = body.paymentMethod?.trim() || "cod";
+  const paymentMethod = (body.paymentMethod?.trim() || "cod").toLowerCase();
   const notes = body.notes?.trim() || "";
-
+  if (paymentMethod !== "cod") throw new Error("Only cash on delivery is available right now");
   if (!items?.length) throw new Error("Order must contain at least one item");
 
+  const sb = getSupabase();
   const ids = items.map((i) => i.productId).filter(Boolean) as string[];
   const slugs = items.map((i) => i.slug).filter(Boolean) as string[];
-  const products = await Product.find({
-    active: true,
-    $or: [{ _id: { $in: ids } }, { slug: { $in: slugs } }],
-  }).lean();
+
+  const products: ReturnType<typeof mapProduct>[] = [];
+  if (ids.length) {
+    const { data, error: idErr } = await sb.from("products").select("*").eq("active", true).in("id", ids);
+    throwIf(idErr);
+    products.push(...(data || []).map(mapProduct));
+  }
+  if (slugs.length) {
+    const { data, error: slugErr } = await sb.from("products").select("*").eq("active", true).in("slug", slugs);
+    throwIf(slugErr);
+    for (const row of data || []) {
+      const mapped = mapProduct(row);
+      if (!products.some((p) => p._id === mapped._id)) products.push(mapped);
+    }
+  }
 
   const lineItems = items.map((i) => {
-    const p = products.find((pr) => String(pr._id) === i.productId || pr.slug === i.slug);
-    if (!p) throw new Error("Invalid or unavailable product in cart");
+    const p = products.find((pr) => pr._id === i.productId || pr.slug === i.slug);
+    if (!p || !p._id) throw new Error("Invalid or unavailable product in cart");
     if (p.inStock === false) throw new Error(`${p.name} is out of stock`);
-
     const qty = positiveInt(i.qty, 1);
     const options = sanitizeRecord(i.options) as Record<string, string>;
     const variantId = options.variantId || "";
     const unitPrice = resolveVariantPrice(p, variantId);
     const variantLabel = resolveVariantLabel(p, variantId);
-    const displayName = variantLabel ? `${p.name} — ${variantLabel}` : p.name;
-
     return {
-      productId: p._id as Types.ObjectId,
+      productId: p._id,
       slug: p.slug,
       sku: p.sku || "",
-      name: displayName,
+      name: variantLabel ? `${p.name} — ${variantLabel}` : p.name,
       price: unitPrice,
       qty,
       image: p.thumbnail || p.images?.[0] || "",
@@ -76,31 +85,53 @@ export async function createStoreOrder(body: {
   const subtotal = lineItems.reduce((s, li) => s + li.price * li.qty, 0);
   const shipping = subtotal >= FREE_SHIPPING_MIN || subtotal === 0 ? 0 : SHIPPING_FLAT;
   const total = subtotal + shipping;
-  const stockLines = lineItems.map((li) => ({ productId: li.productId, qty: li.qty }));
-
   const orderNumber = await nextOrderNumber();
+  const now = new Date().toISOString();
 
-  // Reserve stock first (atomic per SKU, auto-rollback on partial failure).
-  await recordSaleLines(stockLines, undefined, orderNumber);
+  await recordSaleLines(
+    lineItems.map((li) => ({ productId: li.productId, qty: li.qty })),
+    undefined,
+    orderNumber
+  );
 
-  try {
-    const order = await Order.create({
-      orderNumber,
+  const { data: created, error: insErr } = await sb
+    .from("orders")
+    .insert({
+      order_number: orderNumber,
       customer: { name, email, phone },
-      shippingAddress,
+      shipping_address: shippingAddress,
       items: lineItems,
       subtotal,
       shipping,
       total,
-      paymentMethod,
-      paymentStatus: paymentMethod === "cod" ? "unpaid" : "paid",
+      currency: "INR",
+      payment_method: "cod",
+      payment_status: "unpaid",
+      status: "pending",
       notes,
-      statusHistory: [{ status: "pending", note: "Order placed", at: new Date() }],
-    });
+      status_history: [{ status: "pending", note: "COD order placed", at: now }],
+    })
+    .select("*")
+    .single();
 
-    return order;
-  } catch (err) {
-    await restoreSaleLines(stockLines, undefined, orderNumber);
-    throw err;
+  if (insErr) {
+    await restoreSaleLines(lineItems, orderNumber);
+    throw new Error(insErr.message);
   }
+
+  const qty = lineItems.reduce((s, li) => s + li.qty, 0);
+  await sb.from("print_jobs").insert({
+    order_id: created.id,
+    order_number: orderNumber,
+    sku: lineItems.map((l) => l.sku).filter(Boolean).join(", "),
+    qty,
+    status: "queued",
+    notes: lineItems.map((l) => l.name).join("; "),
+  });
+
+  const order = mapOrder(created);
+  sendOrderConfirmationEmail(order).catch((err) =>
+    console.error("Failed to send order confirmation email:", err)
+  );
+  return order;
 }

@@ -1,133 +1,96 @@
-import type { ClientSession, Types } from "mongoose";
-import { Product } from "./models/Product.js";
-import { InventoryMovement, type INVENTORY_REASONS } from "./models/InventoryMovement.js";
-
-type Reason = (typeof INVENTORY_REASONS)[number];
+import { getSupabase } from "./supabase.js";
+import { mapProduct, throwIf } from "./map.js";
+import type { Product } from "./app-types.js";
 
 export async function adjustStock(opts: {
-  productId: Types.ObjectId | string;
+  productId: string;
   delta: number;
-  reason: Reason;
-  orderId?: Types.ObjectId | string;
+  reason: string;
   orderNumber?: string;
   note?: string;
   actor?: string;
-  session?: ClientSession;
-}) {
-  const { productId, delta, reason, orderId, orderNumber, note = "", actor = "system", session } = opts;
-  const qty = Math.abs(delta);
-  const isSale = delta < 0;
+}): Promise<Product> {
+  const sb = getSupabase();
+  const { data: row, error } = await sb.from("products").select("*").eq("id", opts.productId).maybeSingle();
+  throwIf(error);
+  if (!row) throw new Error("Product not found");
 
-  const filter: Record<string, unknown> = { _id: productId };
-  if (isSale) filter.stock = { $gte: qty };
+  const stock = Number(row.stock) || 0;
+  const next = stock + opts.delta;
+  if (next < 0) throw new Error("Insufficient stock for one or more items");
 
-  const product = await Product.findOneAndUpdate(
-    filter,
-    isSale
-      ? [
-          {
-            $set: {
-              stock: { $subtract: ["$stock", qty] },
-              inStock: { $gt: [{ $subtract: ["$stock", qty] }, 0] },
-            },
-          },
-        ]
-      : {
-          $inc: { stock: qty },
-          $set: { inStock: true },
-        },
-    { new: true, session, updatePipeline: isSale }
-  );
+  const { data: updated, error: upErr } = await sb
+    .from("products")
+    .update({ stock: next, in_stock: next > 0, updated_at: new Date().toISOString() })
+    .eq("id", opts.productId)
+    .select("*")
+    .single();
+  throwIf(upErr);
 
-  if (!product) {
-    if (isSale) throw new Error("Insufficient stock for one or more items");
-    throw new Error("Product not found");
-  }
+  await sb.from("inventory_movements").insert({
+    product_id: opts.productId,
+    slug: row.slug,
+    sku: row.sku || "",
+    delta: opts.delta,
+    stock_after: next,
+    reason: opts.reason,
+    order_number: opts.orderNumber || "",
+    note: opts.note || "",
+    actor: opts.actor || "system",
+  });
 
-  await InventoryMovement.create(
-    [
-      {
-        productId: product._id,
-        slug: product.slug,
-        sku: product.sku || "",
-        delta,
-        stockAfter: product.stock ?? 0,
-        reason,
-        orderId: orderId || undefined,
-        orderNumber: orderNumber || "",
-        note,
-        actor,
-      },
-    ],
-    { session }
-  );
-
-  return product;
+  return mapProduct(updated);
 }
 
 export async function recordSaleLines(
-  lines: { productId: Types.ObjectId | string; qty: number }[],
-  orderId?: Types.ObjectId | string,
-  orderNumber?: string,
-  session?: ClientSession
+  lines: { productId: string; qty: number }[],
+  _orderId: string | undefined,
+  orderNumber?: string
 ) {
-  const completed: { productId: Types.ObjectId | string; qty: number }[] = [];
+  const completed: { productId: string; qty: number }[] = [];
   try {
     for (const li of lines) {
       await adjustStock({
         productId: li.productId,
         delta: -li.qty,
         reason: "sale",
-        orderId,
-        orderNumber: orderNumber || "",
-        actor: "checkout",
-        session,
+        orderNumber,
       });
       completed.push(li);
     }
   } catch (err) {
-    await restoreSaleLines(completed, orderId, orderNumber);
+    for (const li of completed.reverse()) {
+      await adjustStock({
+        productId: li.productId,
+        delta: li.qty,
+        reason: "restore",
+        orderNumber,
+        note: "Rollback after failed checkout",
+      });
+    }
     throw err;
   }
 }
 
-/** Restore stock after a failed checkout (reverse sale lines). */
 export async function restoreSaleLines(
-  lines: { productId: Types.ObjectId | string; qty: number }[],
-  orderId?: Types.ObjectId | string,
-  orderNumber?: string,
-  session?: ClientSession
-) {
-  for (const li of lines) {
-    await adjustStock({
-      productId: li.productId,
-      delta: li.qty,
-      reason: "cancel",
-      orderId,
-      orderNumber: orderNumber || "",
-      note: "Checkout rollback",
-      actor: "checkout-rollback",
-      session,
-    });
-  }
-}
-
-export async function restoreCancelledOrder(
-  lines: { productId?: Types.ObjectId | string | null; qty: number }[],
-  orderId: Types.ObjectId | string,
-  orderNumber: string,
-  session?: ClientSession
+  lines: { productId?: string; qty: number }[],
+  orderNumber?: string
 ) {
   for (const li of lines) {
     if (!li.productId) continue;
     await adjustStock({
       productId: li.productId,
       delta: li.qty,
-      reason: "cancel",
-      orderId,
+      reason: "restore",
       orderNumber,
-      actor: "order-cancel",
-      session,
+      note: "Order cancelled",
     });
   }
+}
+
+export async function restoreCancelledOrder(
+  items: { productId?: string; qty: number }[],
+  orderNumber?: string
+) {
+  await restoreSaleLines(items, orderNumber);
 }

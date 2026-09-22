@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { Product } from "../../lib/types";
 import { formatINR } from "../../lib/format";
@@ -19,25 +20,19 @@ export default function AdminProducts() {
       .finally(() => setLoading(false));
   }, []);
 
-  const adminUrl = api.shopifyAdminUrl();
-
   return (
     <div>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="font-display text-3xl font-bold text-ink">Products</h1>
-          <p className="mt-1 text-sm text-ink/55">
-            Catalog is managed in Shopify — this view is read-only.
-          </p>
+          <p className="mt-1 text-sm text-ink/55">Live catalog in Supabase. Add new listings from Catalog after approval.</p>
         </div>
-        <a
-          href={adminUrl}
-          target="_blank"
-          rel="noreferrer"
+        <Link
+          to="/admin/catalog"
           className="rounded-full bg-ink px-5 py-2.5 text-sm font-semibold text-cream-50 transition-transform hover:-translate-y-0.5"
         >
-          Open Shopify Admin
-        </a>
+          Photograph a product
+        </Link>
       </div>
 
       {error && <p className="mt-4 rounded-xl bg-clay/10 px-4 py-3 text-sm text-clay-deep">{error}</p>}
@@ -48,7 +43,7 @@ export default function AdminProducts() {
         </div>
       ) : items.length === 0 ? (
         <p className="py-20 text-center text-ink/40">
-          No products in Shopify yet. Add them in Shopify Admin.
+          No products yet. Apply <code>supabase/schema.sql</code> or photograph a piece in Catalog.
         </p>
       ) : (
         <div className="mt-5 grid gap-3">
@@ -73,9 +68,14 @@ export default function AdminProducts() {
                       Featured
                     </span>
                   )}
+                  {p.active === false && (
+                    <span className="rounded bg-clay/20 px-1.5 py-0.5 text-[10px] font-bold uppercase text-clay-deep">
+                      Hidden
+                    </span>
+                  )}
                 </div>
                 <p className="truncate text-xs text-ink/50">
-                  {p.category || "uncategorized"} · {p.collectionName || "—"} · /{p.slug}
+                  {p.category || "uncategorized"} · {p.collectionName || "—"} · /{p.slug} · stock {p.stock ?? 0}
                 </p>
               </div>
               <span className="font-semibold text-ink">{formatINR(p.price)}</span>

@@ -1,35 +1,33 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
-import mongoose from "mongoose";
 import { withApi, methodNotAllowed, readBody } from "./_lib/http.js";
-import { connectDB } from "./_lib/db.js";
-import { Order, ORDER_STATUSES } from "./_lib/models/Order.js";
+import { getSupabase } from "./_lib/supabase.js";
+import { mapOrder, throwIf } from "./_lib/map.js";
 import { verifyAdmin, isAdminRequest } from "./_lib/auth.js";
+import { ORDER_STATUSES } from "./_lib/constants.js";
 import { restoreCancelledOrder } from "./_lib/inventory.js";
 import { sendOrderStatusUpdateEmail } from "./_lib/mail.js";
+import { createStoreOrder } from "./_lib/create-order.js";
 
-type IncomingItem = {
-  productId?: string;
-  slug?: string;
-  qty: number;
-  price?: number;
-  options?: Record<string, string>;
-};
-
-function findQuery(id: string) {
-  return mongoose.isValidObjectId(id) ? { _id: id } : { orderNumber: id.toUpperCase() };
+function isUuid(id: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 }
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
-  await connectDB();
+  const sb = getSupabase();
   const id = req.query.id as string;
 
-  // Case 1: Route with order ID/number parameter (e.g. /api/orders/:id)
   if (id) {
+    const finder = isUuid(id)
+      ? sb.from("orders").select("*").eq("id", id)
+      : sb.from("orders").select("*").eq("order_number", id.toUpperCase());
+
     if (req.method === "GET") {
       const emailRaw = (req.query.email as string) || "";
       const isAdmin = isAdminRequest(req);
-      const order = await Order.findOne(findQuery(id)).lean();
-      if (!order) throw new Error("Order not found");
+      const { data, error } = await finder.maybeSingle();
+      throwIf(error);
+      if (!data) throw new Error("Order not found");
+      const order = mapOrder(data);
       if (!isAdmin) {
         const orderEmail = order.customer?.email?.toLowerCase() || "";
         const email = emailRaw.trim().toLowerCase();
@@ -47,62 +45,51 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
         status?: string;
         paymentStatus?: string;
         notes?: string;
-        tracking?: {
-          carrier?: string;
-          number?: string;
-          url?: string;
-          estimatedDelivery?: string;
-        };
+        tracking?: { carrier?: string; number?: string; url?: string; estimatedDelivery?: string };
         statusNote?: string;
       }>(req);
 
-      const existing = await Order.findOne(findQuery(id));
+      const { data: existing, error: exErr } = await finder.maybeSingle();
+      throwIf(exErr);
       if (!existing) throw new Error("Order not found");
+      const prev = mapOrder(existing);
 
       if (body.status && !ORDER_STATUSES.includes(body.status as (typeof ORDER_STATUSES)[number])) {
         throw new Error("Invalid status");
       }
 
-      const prevStatus = existing.status;
-      const setFields: Record<string, unknown> = {};
-      const pushHistory = {
-        status: body.status!,
-        note: body.statusNote || `Status updated to ${body.status}`,
-        at: new Date(),
-      };
-
-      if (body.status) setFields.status = body.status;
-      if (body.paymentStatus) setFields.paymentStatus = body.paymentStatus;
-      if (typeof body.notes === "string") setFields.notes = body.notes;
-
-      if (body.tracking) {
-        setFields.tracking = {
-          carrier: body.tracking.carrier || "",
-          number: body.tracking.number || "",
-          url: body.tracking.url || "",
-          estimatedDelivery: body.tracking.estimatedDelivery
-            ? new Date(body.tracking.estimatedDelivery)
-            : null,
-        };
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
+      if (body.status) patch.status = body.status;
+      if (body.paymentStatus) patch.payment_status = body.paymentStatus;
+      if (typeof body.notes === "string") patch.notes = body.notes;
+      if (body.tracking) patch.tracking = body.tracking;
+      if (body.status) {
+        const history = [...(prev.statusHistory || []), {
+          status: body.status,
+          note: body.statusNote || `Status updated to ${body.status}`,
+          at: new Date().toISOString(),
+        }];
+        patch.status_history = history;
       }
 
-      const mongoUpdate: Record<string, unknown> = { $set: setFields };
-      if (body.status) mongoUpdate.$push = { statusHistory: pushHistory };
+      const { data, error } = await sb.from("orders").update(patch).eq("id", existing.id).select("*").single();
+      throwIf(error);
+      const order = mapOrder(data);
 
-      const order = await Order.findOneAndUpdate(findQuery(id), mongoUpdate, { new: true }).lean();
-      if (!order) throw new Error("Order not found");
-
-      if (body.status === "cancelled" && prevStatus !== "cancelled") {
-        await restoreCancelledOrder(existing.items, existing._id, existing.orderNumber);
+      if (body.status === "cancelled" && prev.status !== "cancelled") {
+        await restoreCancelledOrder(prev.items, prev.orderNumber);
       }
-
-      // Trigger status update email if the status actually changed
-      if (body.status && body.status !== prevStatus) {
+      if (body.status && body.status !== prev.status) {
+        if (body.status === "printing" || body.status === "confirmed") {
+          await sb.from("print_jobs").update({
+            status: body.status === "printing" ? "printing" : "queued",
+            updated_at: new Date().toISOString(),
+          }).eq("order_id", existing.id);
+        }
         sendOrderStatusUpdateEmail(order, body.statusNote).catch((err) =>
           console.error("Failed to send order status update email:", err)
         );
       }
-
       res.status(200).json({ order });
       return;
     }
@@ -110,37 +97,29 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     return methodNotAllowed(res, ["GET", "PUT", "PATCH"]);
   }
 
-  // Case 2: Base route (e.g. /api/orders)
   if (req.method === "GET") {
     verifyAdmin(req);
     const { status, q, limit = "100", page = "1" } = req.query as Record<string, string>;
-    const filter: Record<string, unknown> = {};
-    if (status) filter.status = status;
+    let query = sb.from("orders").select("*", { count: "exact" }).order("created_at", { ascending: false });
+    if (status) query = query.eq("status", status);
     if (q) {
-      filter.$or = [
-        { orderNumber: { $regex: q, $options: "i" } },
-        { "customer.email": { $regex: q, $options: "i" } },
-        { "customer.name": { $regex: q, $options: "i" } },
-      ];
+      query = query.or(`order_number.ilike.%${q}%,customer->>email.ilike.%${q}%,customer->>name.ilike.%${q}%`);
     }
     const lim = Math.min(parseInt(limit, 10) || 100, 300);
-    const skip = (Math.max(parseInt(page, 10) || 1, 1) - 1) * lim;
-    const [items, total] = await Promise.all([
-      Order.find(filter).sort("-createdAt").skip(skip).limit(lim).lean(),
-      Order.countDocuments(filter),
-    ]);
-    res.status(200).json({ items, total });
+    const pg = Math.max(parseInt(page, 10) || 1, 1);
+    const from = (pg - 1) * lim;
+    const { data, error, count } = await query.range(from, from + lim - 1);
+    throwIf(error);
+    res.status(200).json({ items: (data || []).map(mapOrder), total: count ?? 0 });
     return;
   }
 
   if (req.method === "POST") {
-    // Storefront checkout is Shopify-hosted. Mongo order creation is retired.
-    res.status(410).json({
-      error:
-        "Legacy checkout disabled. Place orders through Shopify Checkout from the storefront.",
-    });
+    const body = readBody<Parameters<typeof createStoreOrder>[0]>(req);
+    const order = await createStoreOrder({ ...body, paymentMethod: "cod" });
+    res.status(201).json({ order });
     return;
   }
 
-  return methodNotAllowed(res, ["GET"]);
+  return methodNotAllowed(res, ["GET", "POST"]);
 });

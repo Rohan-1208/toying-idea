@@ -1,21 +1,20 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed, readBody } from "./_lib/http.js";
-import { findShopifyOrderForTracking } from "./_lib/shopify-track.js";
-import { isShopifyAdminConfigured } from "./_lib/shopify-admin.js";
+import { getSupabase } from "./_lib/supabase.js";
+import { mapOrder, throwIf } from "./_lib/map.js";
 
-/**
- * Public order tracking against Shopify Admin API.
- * GET/POST /api/track?order=TI1005&email=you@email.com
- */
+const STEP: Record<string, "placed" | "confirmed" | "printing" | "shipped" | "delivered" | "cancelled"> = {
+  pending: "placed",
+  confirmed: "confirmed",
+  printing: "printing",
+  shipped: "shipped",
+  delivered: "delivered",
+  cancelled: "cancelled",
+};
+
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET" && req.method !== "POST") {
     return methodNotAllowed(res, ["GET", "POST"]);
-  }
-
-  if (!isShopifyAdminConfigured()) {
-    throw new Error(
-      "Order tracking is not configured. Set SHOPIFY_STORE_DOMAIN and SHOPIFY_ADMIN_TOKEN on Vercel (Production), then redeploy."
-    );
   }
 
   const body =
@@ -23,15 +22,44 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
       ? readBody<{ order?: string; orderNumber?: string; email?: string }>(req)
       : {};
 
-  const orderNumber =
-    (typeof req.query.order === "string" && req.query.order) ||
-    (typeof req.query.orderNumber === "string" && req.query.orderNumber) ||
-    body.order ||
-    body.orderNumber ||
-    "";
-  const email =
-    (typeof req.query.email === "string" && req.query.email) || body.email || "";
+  const orderNumber = String(
+    req.query.order || req.query.orderNumber || body.order || body.orderNumber || ""
+  )
+    .toUpperCase()
+    .replace(/\s+/g, "");
+  const email = String(req.query.email || body.email || "")
+    .trim()
+    .toLowerCase();
+  if (!orderNumber || !email) throw new Error("Order number and email are required");
 
-  const order = await findShopifyOrderForTracking(orderNumber, email);
-  res.status(200).json({ order });
+  const sb = getSupabase();
+  const { data, error } = await sb.from("orders").select("*").eq("order_number", orderNumber).maybeSingle();
+  throwIf(error);
+  if (!data) throw new Error("Order not found");
+  const order = mapOrder(data);
+  if ((order.customer.email || "").toLowerCase() !== email) throw new Error("Order not found");
+
+  res.status(200).json({
+    order: {
+      orderNumber: order.orderNumber,
+      email: order.customer.email,
+      financialStatus: order.paymentStatus === "paid" ? "paid" : "pending",
+      fulfillmentStatus: order.status,
+      processedAt: order.createdAt,
+      items: order.items.map((i) => ({ title: i.name, quantity: i.qty })),
+      fulfillments: order.tracking?.number
+        ? [
+            {
+              status: order.status,
+              carrier: order.tracking.carrier,
+              number: order.tracking.number,
+              url: order.tracking.url,
+              createdAt: order.updatedAt,
+            },
+          ]
+        : [],
+      step: STEP[order.status] || "placed",
+      paymentMethod: order.paymentMethod || "cod",
+    },
+  });
 });

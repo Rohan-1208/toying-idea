@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "../../lib/api";
 import type { Inquiry } from "../../lib/types";
 import { formatDateTime } from "../../lib/format";
@@ -18,6 +19,8 @@ export default function AdminInquiries() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [type, setType] = useState("");
+  const [drafting, setDrafting] = useState("");
+  const [draftNote, setDraftNote] = useState("");
 
   const load = () => {
     setLoading(true);
@@ -36,9 +39,26 @@ export default function AdminInquiries() {
     setItems((prev) => prev.map((i) => (i._id === inquiry._id ? inquiry : i)));
   };
 
+  const draftReply = async (inq: Inquiry) => {
+    if (!inq._id) return;
+    setDrafting(inq._id);
+    setDraftNote("");
+    try {
+      await api.studio.inboxDraft(inq._id);
+      setDraftNote("Reply draft ready in Approvals.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not draft reply");
+    } finally {
+      setDrafting("");
+    }
+  };
+
   return (
     <div>
-      <h1 className="font-display text-3xl font-bold text-ink">Inquiries</h1>
+      <h1 className="font-display text-3xl font-bold text-ink">Inbox</h1>
+      <p className="mt-1 text-sm text-ink/55">
+        Custom orders, PYOT, and contact forms. Draft a reply, then send it from Approvals.
+      </p>
 
       <div className="mt-5 flex gap-1.5">
         {TYPES.map((t) => (
@@ -55,6 +75,14 @@ export default function AdminInquiries() {
       </div>
 
       {error && <p className="mt-4 rounded-xl bg-clay/10 px-4 py-3 text-sm text-clay-deep">{error}</p>}
+      {draftNote && (
+        <p className="mt-4 rounded-xl bg-teal/10 px-4 py-3 text-sm text-teal-deep">
+          {draftNote}{" "}
+          <Link to="/admin/approvals" className="font-semibold underline">
+            Open Approvals
+          </Link>
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-20"><Spinner className="h-6 w-6" /></div>
@@ -73,15 +101,25 @@ export default function AdminInquiries() {
                   <p className="text-sm text-ink/55">{inq.email}{inq.phone ? ` · ${inq.phone}` : ""}</p>
                   <p className="text-xs text-ink/40">{formatDateTime(inq.createdAt)}</p>
                 </div>
-                <select
-                  value={inq.status || "new"}
-                  onChange={(e) => setStatus(inq, e.target.value)}
-                  className="rounded-full border border-ink/15 bg-cream px-3 py-1.5 text-sm outline-none focus:border-clay"
-                >
-                  {STATUSES.map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </select>
+                <div className="flex items-center gap-2">
+                  <select
+                    value={inq.status || "new"}
+                    onChange={(e) => setStatus(inq, e.target.value)}
+                    className="rounded-full border border-ink/15 bg-cream px-3 py-1.5 text-sm outline-none focus:border-clay"
+                  >
+                    {STATUSES.map((s) => (
+                      <option key={s} value={s}>{s}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={drafting === inq._id}
+                    onClick={() => draftReply(inq)}
+                    className="rounded-full border border-ink/15 px-3 py-1.5 text-sm font-medium text-ink hover:bg-ink/5 disabled:opacity-50"
+                  >
+                    {drafting === inq._id ? "Drafting…" : "Draft reply"}
+                  </button>
+                </div>
               </div>
 
               {inq.message && <p className="mt-3 rounded-xl bg-ink/[0.03] p-3 text-sm text-ink/70">{inq.message}</p>}

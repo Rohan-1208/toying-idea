@@ -6,7 +6,7 @@ import { ProductCard } from "../components/ProductCard";
 import { PageHeader } from "../components/Layout";
 import { Spinner } from "../components/ui";
 
-/** One filter row — curated Shopify collections (not duplicate type chips). */
+/** One filter row — curated collections (not duplicate type chips). */
 const FILTERS = [
   { id: "", label: "All" },
   { id: "home-decor", label: "Home Decor" },
@@ -60,7 +60,7 @@ export default function Shop() {
         if (active) setItems(res.items);
       })
       .catch((e) => {
-        if (active) setError(e instanceof Error ? e.message : "Could not load products from Shopify");
+        if (active) setError(e instanceof Error ? e.message : "Could not load products");
       })
       .finally(() => active && setLoading(false));
     return () => {

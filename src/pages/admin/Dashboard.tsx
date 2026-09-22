@@ -12,6 +12,7 @@ interface Stats {
   lowStock: number;
   revenue: number;
   byStatus: Record<string, number>;
+  pendingDrafts: number;
   recentOrders: Order[];
 }
 
@@ -36,7 +37,9 @@ export default function Dashboard() {
         <p className="font-semibold">Couldn't load dashboard data.</p>
         <p className="mt-1 text-sm">{error}</p>
         <p className="mt-3 text-sm text-ink/60">
-          Make sure <code className="rounded bg-ink/10 px-1">MONGODB_URI</code> and admin env vars are configured.
+          Make sure <code className="rounded bg-ink/10 px-1">SUPABASE_URL</code> and{" "}
+          <code className="rounded bg-ink/10 px-1">SUPABASE_SERVICE_ROLE_KEY</code> are set on Vercel, then apply{" "}
+          <code className="rounded bg-ink/10 px-1">supabase/schema.sql</code>.
         </p>
       </div>
     );
@@ -48,14 +51,20 @@ export default function Dashboard() {
     { label: "Products", value: stats!.totalProducts, accent: "text-ink" },
     { label: "Open inquiries", value: stats!.openInquiries, accent: "text-gold" },
     { label: "Low stock", value: stats!.lowStock, accent: "text-clay-deep" },
+    { label: "Pending drafts", value: stats!.pendingDrafts ?? 0, accent: "text-clay" },
   ];
 
   return (
     <div>
       <h1 className="font-display text-3xl font-bold text-ink">Dashboard</h1>
-      <p className="mt-1 text-ink/55">An overview of your store.</p>
+      <p className="mt-1 text-ink/55">
+        Live catalog, COD orders, and studio drafts from Supabase.{" "}
+        <Link to="/admin/approvals" className="font-medium text-clay hover:underline">
+          Review drafts
+        </Link>
+      </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {cards.map((c) => (
           <div key={c.label} className="rounded-2xl border border-ink/10 bg-cream p-5">
             <p className="text-sm text-ink/50">{c.label}</p>
@@ -68,7 +77,9 @@ export default function Dashboard() {
         <div className="rounded-2xl border border-ink/10 bg-cream p-5">
           <div className="mb-4 flex items-center justify-between">
             <h2 className="font-display text-lg font-bold text-ink">Recent orders</h2>
-            <Link to="/admin/orders" className="text-sm font-medium text-clay hover:underline">View all</Link>
+            <Link to="/admin/orders" className="text-sm font-medium text-clay hover:underline">
+              View all
+            </Link>
           </div>
           {stats!.recentOrders.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink/40">No orders yet.</p>

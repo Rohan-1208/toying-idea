@@ -43,7 +43,7 @@ export default function TrackOrder() {
     setOrder(null);
     setLoading(true);
     try {
-      const { order: result } = await api.orders.trackShopify(withTiPrefix(number).trim(), mail.trim());
+      const { order: result } = await api.orders.trackPublic(withTiPrefix(number).trim(), mail.trim());
       setOrder(result);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Order not found.");

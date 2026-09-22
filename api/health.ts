@@ -1,18 +1,20 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed } from "./_lib/http.js";
-import { connectDB } from "./_lib/db.js";
+import { getSupabase } from "./_lib/supabase.js";
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
 
-  const hasUri = Boolean(process.env.MONGODB_URI);
-  let db: "connected" | "error" | "not_configured" = hasUri ? "error" : "not_configured";
+  const hasUrl = Boolean(process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL);
+  const hasKey = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  let db: "connected" | "error" | "not_configured" = hasUrl && hasKey ? "error" : "not_configured";
   let dbError: string | undefined;
 
-  if (hasUri) {
+  if (hasUrl && hasKey) {
     try {
-      const conn = await connectDB();
-      await conn.connection.db?.admin().ping();
+      const sb = getSupabase();
+      const { error } = await sb.from("products").select("id").limit(1);
+      if (error) throw new Error(error.message);
       db = "connected";
     } catch (err) {
       dbError = err instanceof Error ? err.message : "Database connection failed";
@@ -23,7 +25,7 @@ export default withApi(async (req: VercelRequest, res: VercelResponse) => {
     ok: db === "connected",
     service: "toying-idea-api",
     db,
-    dbName: process.env.MONGODB_DB || null,
+    provider: "supabase",
     ...(dbError ? { dbError } : {}),
     timestamp: new Date().toISOString(),
   });

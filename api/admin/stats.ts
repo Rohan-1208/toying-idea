@@ -1,59 +1,46 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 import { withApi, methodNotAllowed } from "../_lib/http.js";
-import { connectDB } from "../_lib/db.js";
+import { getSupabase } from "../_lib/supabase.js";
+import { mapOrder, throwIf } from "../_lib/map.js";
 import { verifyAdmin } from "../_lib/auth.js";
-import { Order } from "../_lib/models/Order.js";
-import { Inquiry } from "../_lib/models/Inquiry.js";
-import { isShopifyAdminConfigured, shopifyAdminGraphql } from "../_lib/shopify-admin.js";
-
-async function shopifyProductCount(): Promise<number> {
-  if (!isShopifyAdminConfigured()) return 0;
-  try {
-    const data = await shopifyAdminGraphql<{ productsCount: { count: number } }>(
-      `query ProductCount { productsCount(query: "status:active") { count } }`
-    );
-    return data.productsCount?.count ?? 0;
-  } catch {
-    try {
-      const data = await shopifyAdminGraphql<{
-        products: { edges: Array<{ node: { id: string } }> };
-      }>(`query { products(first: 250, query: "status:active") { edges { node { id } } } }`);
-      return data.products?.edges?.length ?? 0;
-    } catch {
-      return 0;
-    }
-  }
-}
 
 export default withApi(async (req: VercelRequest, res: VercelResponse) => {
   if (req.method !== "GET") return methodNotAllowed(res, ["GET"]);
   verifyAdmin(req);
-  await connectDB();
+  const sb = getSupabase();
 
-  const [totalOrders, totalProducts, openInquiries, statusAgg, revenueAgg, recentOrders] =
-    await Promise.all([
-      Order.countDocuments({}),
-      shopifyProductCount(),
-      Inquiry.countDocuments({ status: { $in: ["new", "in-review", "quoted", "approved", "printing"] } }),
-      Order.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
-      Order.aggregate([
-        { $match: { status: { $ne: "cancelled" } } },
-        { $group: { _id: null, total: { $sum: "$total" } } },
-      ]),
-      Order.find({}).sort("-createdAt").limit(8).lean(),
-    ]);
+  const [ordersRes, productsRes, inquiriesRes, lowStockRes] = await Promise.all([
+    sb.from("orders").select("*").order("created_at", { ascending: false }),
+    sb.from("products").select("id, stock, low_stock_threshold, active"),
+    sb.from("inquiries").select("id, status"),
+    sb.from("products").select("id").eq("active", true),
+  ]);
+  throwIf(ordersRes.error);
+  throwIf(productsRes.error);
+  throwIf(inquiriesRes.error);
 
+  const orders = (ordersRes.data || []).map(mapOrder);
+  const products = productsRes.data || [];
+  const inquiries = inquiriesRes.data || [];
   const byStatus: Record<string, number> = {};
-  for (const s of statusAgg) byStatus[s._id] = s.count;
+  let revenue = 0;
+  for (const o of orders) {
+    byStatus[o.status] = (byStatus[o.status] || 0) + 1;
+    if (o.status !== "cancelled") revenue += o.total;
+  }
+  const open = new Set(["new", "in-review", "quoted", "approved", "printing"]);
+  const lowStock = products.filter(
+    (p) => p.active !== false && Number(p.stock) <= Number(p.low_stock_threshold ?? 5)
+  ).length;
 
   res.status(200).json({
-    totalOrders,
-    totalProducts,
-    openInquiries,
-    // Inventory lives in Shopify — Mongo low-stock is unused.
-    lowStock: 0,
-    revenue: revenueAgg[0]?.total || 0,
+    totalOrders: orders.length,
+    totalProducts: (lowStockRes.data || []).length,
+    openInquiries: inquiries.filter((i) => open.has(String(i.status))).length,
+    lowStock,
+    revenue,
     byStatus,
-    recentOrders,
+    pendingDrafts: (await sb.from("drafts").select("id", { count: "exact", head: true }).eq("status", "pending")).count || 0,
+    recentOrders: orders.slice(0, 8),
   });
 });

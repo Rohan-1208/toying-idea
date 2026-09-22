@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
-import type { OrderDoc } from "./models/Order.js";
+import type { Order } from "./app-types.js";
 
 // Load Resend configuration if set
 const RESEND_API_KEY = process.env.RESEND_API_KEY || "";
@@ -144,7 +144,7 @@ function getEmailLayout(title: string, bodyContent: string): string {
 }
 
 // Send email helper
-async function sendEmail(to: string, subject: string, html: string, orderNumber: string, templateType: string) {
+export async function sendEmail(to: string, subject: string, html: string, orderNumber: string, templateType: string) {
   // If API key is set, send via Resend REST API
   if (RESEND_API_KEY) {
     try {
@@ -192,7 +192,7 @@ async function sendEmail(to: string, subject: string, html: string, orderNumber:
 }
 
 // Send Order Confirmation Email
-export async function sendOrderConfirmationEmail(order: OrderDoc) {
+export async function sendOrderConfirmationEmail(order: Order) {
   const customer = order.customer;
   if (!customer) {
     throw new Error("Order customer details are missing");
@@ -234,7 +234,7 @@ export async function sendOrderConfirmationEmail(order: OrderDoc) {
         </tr>
         <tr>
           <td style="padding: 4px 0; color: #2B2018; opacity: 0.6;">Payment Status:</td>
-          <td style="padding: 4px 0; font-weight: 600; text-align: right; color: ${order.paymentStatus === "paid" ? "#2A8C97" : "#E8731E"};">${order.paymentStatus.toUpperCase()}</td>
+          <td style="padding: 4px 0; font-weight: 600; text-align: right; color: ${order.paymentStatus === "paid" ? "#2A8C97" : "#E8731E"};">${(order.paymentStatus || "unpaid").toUpperCase()}</td>
         </tr>
       </table>
     </div>
@@ -286,7 +286,7 @@ export async function sendOrderConfirmationEmail(order: OrderDoc) {
 }
 
 // Send Order Status Update Email
-export async function sendOrderStatusUpdateEmail(order: OrderDoc, note?: string) {
+export async function sendOrderStatusUpdateEmail(order: Order, note?: string) {
   const customer = order.customer;
   if (!customer) {
     throw new Error("Order customer details are missing");

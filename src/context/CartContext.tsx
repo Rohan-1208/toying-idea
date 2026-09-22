@@ -1,11 +1,8 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import type { CartLine, Product } from "../lib/types";
-import { cartLineKey, resolveProductImage, resolveProductPrice, resolveVariant } from "../lib/cart";
-import { isShopifyConfigured } from "../lib/shopify/config";
-import { checkoutFromMerchandise, getShopifyProduct } from "../lib/shopify";
+import { cartLineKey, resolveProductImage, resolveProductPrice } from "../lib/cart";
 
 const STORAGE_KEY = "ti_cart_v2";
-const CART_ID_KEY = "ti_shopify_cart_id";
 
 function migrateLines(raw: unknown): CartLine[] {
   if (!Array.isArray(raw)) return [];
@@ -18,32 +15,6 @@ function migrateLines(raw: unknown): CartLine[] {
   });
 }
 
-function merchandiseIdForLine(product: Product, options?: Record<string, string>): string | undefined {
-  if (options?.variantId?.startsWith("gid://")) return options.variantId;
-  if (product.shopifyMerchandiseId?.startsWith("gid://")) return product.shopifyMerchandiseId;
-  const variant = resolveVariant(product, options?.variantId);
-  if (variant?.id?.startsWith("gid://")) return variant.id;
-  const first = product.variants?.find((v) => v.id?.startsWith("gid://"));
-  return first?.id;
-}
-
-async function resolveMerchandiseId(line: CartLine): Promise<string | null> {
-  const existing = line.options?.variantId;
-  if (existing?.startsWith("gid://")) return existing;
-
-  try {
-    const product = await getShopifyProduct(line.slug);
-    if (!product) return null;
-    return (
-      product.shopifyMerchandiseId ||
-      product.variants?.find((v) => v.id?.startsWith("gid://"))?.id ||
-      null
-    );
-  } catch {
-    return null;
-  }
-}
-
 interface CartContextValue {
   lines: CartLine[];
   count: number;
@@ -54,8 +25,6 @@ interface CartContextValue {
   clear: () => void;
   isOpen: boolean;
   setOpen: (open: boolean) => void;
-  beginShopifyCheckout: () => Promise<string>;
-  shopifyReady: boolean;
 }
 
 const CartContext = createContext<CartContextValue | null>(null);
@@ -72,7 +41,6 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     }
   });
   const [isOpen, setOpen] = useState(false);
-  const shopifyReady = isShopifyConfigured();
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(lines));
@@ -80,11 +48,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<CartContextValue>(() => {
     const add: CartContextValue["add"] = (product, qty = 1, options) => {
-      const merchandiseId = merchandiseIdForLine(product, options);
-      const mergedOptions = {
-        ...options,
-        ...(merchandiseId ? { variantId: merchandiseId } : {}),
-      };
+      const mergedOptions = { ...options };
       const key = cartLineKey(product.slug, mergedOptions);
       const price = resolveProductPrice(product, mergedOptions.variantId);
       setLines((prev) => {
@@ -121,44 +85,7 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     const remove: CartContextValue["remove"] = (key) =>
       setLines((prev) => prev.filter((l) => l.key !== key));
 
-    const clear = () => {
-      setLines([]);
-      localStorage.removeItem(CART_ID_KEY);
-    };
-
-    const beginShopifyCheckout: CartContextValue["beginShopifyCheckout"] = async () => {
-      if (!shopifyReady) {
-        throw new Error("Checkout is not configured yet. Please try again shortly.");
-      }
-      if (!lines.length) {
-        throw new Error("Your cart is empty.");
-      }
-
-      const merchandiseLines: Array<{ merchandiseId: string; quantity: number }> = [];
-      const resolvedByKey: Record<string, string> = {};
-
-      for (const line of lines) {
-        const merchandiseId = await resolveMerchandiseId(line);
-        if (!merchandiseId) {
-          throw new Error(
-            `Could not check out “${line.name}”. Remove it, open the product again, and add it to cart.`
-          );
-        }
-        merchandiseLines.push({ merchandiseId, quantity: line.qty });
-        resolvedByKey[line.key] = merchandiseId;
-      }
-
-      setLines((prev) =>
-        prev.map((l) => {
-          const id = resolvedByKey[l.key];
-          return id ? { ...l, options: { ...l.options, variantId: id } } : l;
-        })
-      );
-
-      const { cartId, checkoutUrl } = await checkoutFromMerchandise(merchandiseLines);
-      localStorage.setItem(CART_ID_KEY, cartId);
-      return checkoutUrl;
-    };
+    const clear = () => setLines([]);
 
     const count = lines.reduce((s, l) => s + l.qty, 0);
     const subtotal = lines.reduce((s, l) => s + l.price * l.qty, 0);
@@ -173,10 +100,8 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       clear,
       isOpen,
       setOpen,
-      beginShopifyCheckout,
-      shopifyReady,
     };
-  }, [lines, isOpen, shopifyReady]);
+  }, [lines, isOpen]);
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 }

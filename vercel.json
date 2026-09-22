@@ -22,6 +22,14 @@
       "destination": "/api/orders?id=:id"
     },
     {
+      "source": "/api/studio/drafts/:id",
+      "destination": "/api/studio/drafts?id=:id"
+    },
+    {
+      "source": "/api/studio/print-jobs/:id",
+      "destination": "/api/studio/print-jobs?id=:id"
+    },
+    {
       "source": "/((?!api/|src/|@|node_modules/|assets/)(?!.*\\.).*)",
       "destination": "/index.html"
     }

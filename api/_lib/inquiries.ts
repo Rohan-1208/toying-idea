@@ -1,4 +1,4 @@
-import { INQUIRY_STATUSES, INQUIRY_TYPES } from "./models/Inquiry.js";
+import { INQUIRY_STATUSES, INQUIRY_TYPES } from "./constants.js";
 import { optionalString, pickEnum, requireString, sanitizeRecord, normalizeEmail } from "./validate.js";
 
 export function buildInquiryPayload(body: Record<string, unknown>) {

@@ -8,7 +8,6 @@ export interface ProductVariant {
   price: { currency: string; amount: number };
 }
 
-/** bundle = single product price (variants list what's included); variant = pick option with its own price */
 export type ProductPricingMode = "bundle" | "variant";
 
 export interface Product {
@@ -46,17 +45,6 @@ export interface Product {
   updatedAt?: string;
 }
 
-export interface CartLine {
-  key: string;
-  slug: string;
-  productId?: string;
-  name: string;
-  price: number;
-  qty: number;
-  image?: string;
-  options?: Record<string, string>;
-}
-
 export type OrderStatus =
   | "pending"
   | "confirmed"
@@ -64,30 +52,6 @@ export type OrderStatus =
   | "shipped"
   | "delivered"
   | "cancelled";
-
-export interface OrderTracking {
-  carrier?: string;
-  number?: string;
-  url?: string;
-  estimatedDelivery?: string;
-}
-
-export interface OrderStatusEvent {
-  status: string;
-  note?: string;
-  at?: string;
-}
-
-export interface OrderItem {
-  productId?: string;
-  slug?: string;
-  sku?: string;
-  name: string;
-  price: number;
-  qty: number;
-  image?: string;
-  options?: Record<string, string>;
-}
 
 export interface Order {
   _id?: string;
@@ -101,7 +65,16 @@ export interface Order {
     pincode?: string;
     country?: string;
   };
-  items: OrderItem[];
+  items: Array<{
+    productId?: string;
+    slug?: string;
+    sku?: string;
+    name: string;
+    price: number;
+    qty: number;
+    image?: string;
+    options?: Record<string, string>;
+  }>;
   subtotal: number;
   shipping: number;
   total: number;
@@ -109,34 +82,19 @@ export interface Order {
   status: OrderStatus;
   paymentStatus?: "unpaid" | "paid" | "refunded";
   paymentMethod?: string;
-  tracking?: OrderTracking;
-  statusHistory?: OrderStatusEvent[];
+  tracking?: {
+    carrier?: string;
+    number?: string;
+    url?: string;
+    estimatedDelivery?: string;
+  };
+  statusHistory?: Array<{ status: string; note?: string; at?: string }>;
   notes?: string;
   createdAt?: string;
   updatedAt?: string;
 }
 
-/** Public tracking payload from /api/track */
-export interface ShopifyTrackedOrder {
-  orderNumber: string;
-  email: string;
-  financialStatus: string;
-  fulfillmentStatus: string;
-  processedAt?: string;
-  statusPageUrl?: string;
-  items: Array<{ title: string; quantity: number }>;
-  fulfillments: Array<{
-    status: string;
-    carrier?: string;
-    number?: string;
-    url?: string;
-    createdAt?: string;
-  }>;
-  step: "placed" | "confirmed" | "printing" | "shipped" | "delivered" | "cancelled";
-}
-
 export type InquiryType = "pyot" | "gifting" | "contact";
-
 export type InquiryStatus =
   | "new"
   | "in-review"
@@ -146,31 +104,6 @@ export type InquiryStatus =
   | "completed"
   | "closed";
 
-export interface PyotDetails {
-  fileLinks?: string;
-  fileNames?: string;
-  material?: string;
-  finish?: string;
-  color?: string;
-  quantity?: string;
-  scale?: string;
-}
-
-export interface GiftingDetails {
-  occasion?: string;
-  quantity?: string;
-  budget?: string;
-  brandingNotes?: string;
-  deliveryDate?: string;
-}
-
-export interface InquiryQuote {
-  amount?: number;
-  currency?: string;
-  note?: string;
-  validUntil?: string;
-}
-
 export interface Inquiry {
   _id?: string;
   type: InquiryType;
@@ -178,11 +111,11 @@ export interface Inquiry {
   email: string;
   phone?: string;
   message?: string;
-  pyot?: PyotDetails;
-  gifting?: GiftingDetails;
+  pyot?: Record<string, string>;
+  gifting?: Record<string, string>;
   contact?: { subject?: string };
   details?: Record<string, unknown>;
-  quote?: InquiryQuote;
+  quote?: { amount?: number; currency?: string; note?: string; validUntil?: string };
   status?: InquiryStatus;
   createdAt?: string;
   updatedAt?: string;
@@ -196,33 +129,7 @@ export interface Review {
   title?: string;
   body: string;
   status?: "pending" | "approved" | "rejected";
-  verifiedPurchase?: boolean;
   createdAt?: string;
-}
-
-export interface StudioDraft {
-  _id: string;
-  id?: string;
-  agent: string;
-  status: "pending" | "approved" | "rejected" | string;
-  title: string;
-  payload: Record<string, unknown>;
-  created_at?: string;
-  updated_at?: string;
-}
-
-export interface PrintJob {
-  id: string;
-  order_id?: string;
-  order_number: string;
-  sku?: string;
-  qty: number;
-  status: string;
-  printer?: string;
-  due_at?: string;
-  notes?: string;
-  created_at?: string;
-  updated_at?: string;
 }
 
 export interface InventoryMovement {

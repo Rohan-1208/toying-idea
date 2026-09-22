@@ -98,7 +98,6 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
 
   const compareAt = moneyAmount(node.compareAtPriceRange?.minVariantPrice);
   const minPrice = moneyAmount(node.priceRange.minVariantPrice);
-  const primaryVariantId = variantsNodes[0]?.id;
 
   return {
     _id: node.id,
@@ -121,7 +120,6 @@ export function mapShopifyProduct(node: ShopifyProductNode): Product {
     thumbnail: images[0],
     variants,
     pricingMode,
-    ...(primaryVariantId ? { shopifyMerchandiseId: primaryVariantId } : {}),
     inStock: node.availableForSale,
     stock: node.availableForSale ? 99 : 0,
     featured: node.tags?.some((t) => t.toLowerCase() === "featured") || false,
