@@ -1,4 +1,5 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
+import { formatUnknownError } from "./supabase.js";
 
 type Handler = (req: VercelRequest, res: VercelResponse) => Promise<unknown> | unknown;
 
@@ -17,7 +18,11 @@ export function withApi(handler: Handler) {
     try {
       await handler(req, res);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : "Internal Server Error";
+      const raw = formatUnknownError(err);
+      const message =
+        /fetch failed|could not be reached/i.test(raw)
+          ? `${raw}. SUPABASE_URL must be https://YOURPROJECT.supabase.co (Project URL from Settings → API).`
+          : raw || "Internal Server Error";
       // Surface validation-ish errors as 400, otherwise 500.
       const status = /required|invalid|exists|not found|unauthor/i.test(message)
         ? message.toLowerCase().includes("not found")
