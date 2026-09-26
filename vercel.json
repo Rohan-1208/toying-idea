@@ -42,6 +42,22 @@
       "destination": "/api/studio?resource=:resource"
     },
     {
+      "source": "/api/admin/agent-os",
+      "destination": "/api/agent-os"
+    },
+    {
+      "source": "/api/admin/agent-os/:a",
+      "destination": "/api/agent-os?a=:a"
+    },
+    {
+      "source": "/api/admin/agent-os/:a/:b",
+      "destination": "/api/agent-os?a=:a&b=:b"
+    },
+    {
+      "source": "/api/admin/agent-os/:a/:b/:c",
+      "destination": "/api/agent-os?a=:a&b=:b&c=:c"
+    },
+    {
       "source": "/((?!api/|src/|@|node_modules/|assets/)(?!.*\\.).*)",
       "destination": "/index.html"
     }

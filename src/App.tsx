@@ -29,6 +29,7 @@ const AdminFloor = lazy(() => import("./pages/admin/AdminFloor"));
 const AdminApprovals = lazy(() => import("./pages/admin/AdminApprovals"));
 const AdminMarketing = lazy(() => import("./pages/admin/AdminMarketing"));
 const AdminWebsite = lazy(() => import("./pages/admin/AdminWebsite"));
+const AdminAgents = lazy(() => import("./pages/admin/AdminAgents"));
 
 function Fallback() {
   return (
@@ -74,6 +75,7 @@ export default function App() {
                 <Route path="approvals" element={<AdminApprovals />} />
                 <Route path="marketing" element={<AdminMarketing />} />
                 <Route path="website" element={<AdminWebsite />} />
+                <Route path="agents" element={<AdminAgents />} />
               </Route>
             </Routes>
           </Suspense>
