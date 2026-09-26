@@ -40,6 +40,15 @@ export default async function AdminPage() {
           </Card>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
+            <Card className="p-6 grid gap-2 md:col-span-2 border-ti-orange/40">
+              <div className="font-[var(--font-ti-display)] text-xl tracking-tight">Agent OS</div>
+              <div className="text-sm text-muted">
+                Your AI team: approve agent actions, manage agents and workflows, and see everything they did.
+              </div>
+              <Link href="/admin/agents" className="text-sm font-medium underline">
+                Open Agent OS
+              </Link>
+            </Card>
             <Card className="p-6 grid gap-2">
               <div className="font-[var(--font-ti-display)] text-xl tracking-tight">Products</div>
               <div className="text-sm text-muted">Create and update products and variants.</div>

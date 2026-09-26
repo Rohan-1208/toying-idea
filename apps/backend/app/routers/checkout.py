@@ -5,6 +5,8 @@ import secrets
 
 from ..db import get_db
 from ..mongo import normalize_id
+from ..agents.core.events import emit_event
+from ..agents.tools.commerce import upsert_customer_from_order
 
 
 router = APIRouter(tags=["checkout"])
@@ -101,6 +103,12 @@ async def checkout(payload: CheckoutInput, req: Request, res: Response):
 
     inserted = await db["orders"].insert_one(doc)
     created = await db["orders"].find_one({"_id": inserted.inserted_id})
+
+    try:
+        await upsert_customer_from_order(db, created)
+    except Exception:
+        pass
+    await emit_event(db, "order.created", {"order_number": number, "customer_email": payload.customer.email}, source="checkout")
 
     await db["carts"].delete_one({"session_id": session_id})
     res.set_cookie("ti_last_order", number, httponly=True, samesite="lax", path="/")

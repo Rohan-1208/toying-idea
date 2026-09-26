@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 import secrets
 
 from ..db import get_db
+from ..agents.core.events import emit_event
 
 
 router = APIRouter(prefix="/requests", tags=["requests"])
@@ -46,6 +47,7 @@ async def create_gifting_request(payload: GiftingRequest):
         "createdAt": now_iso(),
     }
     await db["requests"].insert_one(doc)
+    await emit_event(db, "request.created", {"request_id": doc["requestId"], "type": doc["type"]}, source="storefront")
     return {
         "requestId": doc["requestId"],
         "status": doc["status"],
@@ -65,6 +67,7 @@ async def create_pyot_request(payload: PyotRequest):
         "createdAt": now_iso(),
     }
     await db["requests"].insert_one(doc)
+    await emit_event(db, "request.created", {"request_id": doc["requestId"], "type": doc["type"]}, source="storefront")
     return {
         "requestId": doc["requestId"],
         "status": doc["status"],

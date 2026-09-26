@@ -4,7 +4,8 @@ import os
 from .config import settings
 from .db import get_db
 from .security import hash_password, verify_password
-from .routers import auth, products, orders, users, collections, requests, cart, track_order, uploads, checkout
+from .routers import auth, products, orders, users, collections, requests, cart, track_order, uploads, checkout, agents
+from .agents import service as agent_os
 
 
 app = FastAPI(title="Toying Idea API")
@@ -27,6 +28,17 @@ app.include_router(cart.router, prefix="/api")
 app.include_router(track_order.router, prefix="/api")
 app.include_router(uploads.router, prefix="/api")
 app.include_router(checkout.router, prefix="/api")
+app.include_router(agents.router, prefix="/api")
+
+
+@app.on_event("startup")
+async def start_agent_os():
+    await agent_os.startup(get_db)
+
+
+@app.on_event("shutdown")
+async def stop_agent_os():
+    await agent_os.shutdown()
 
 
 @app.on_event("startup")

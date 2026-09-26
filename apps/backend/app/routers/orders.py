@@ -5,6 +5,7 @@ import secrets
 from ..db import get_db
 from ..deps import get_current_user, require_admin
 from ..mongo import normalize_id, normalize_ids, object_id
+from ..agents.core.events import emit_event
 
 
 router = APIRouter(tags=["orders"])
@@ -95,6 +96,7 @@ async def admin_list_orders(admin=Depends(require_admin)):
 async def admin_update_status(order_id: str, status_value: str, admin=Depends(require_admin)):
     db = await get_db()
     event = {"id": uid("e"), "at": now_iso(), "title": status_value}
+    before = await db["orders"].find_one({"_id": object_id(order_id)})
     await db["orders"].update_one(
         {"_id": object_id(order_id)},
         {"$set": {"status": status_value}, "$push": {"events": event}},
@@ -103,4 +105,10 @@ async def admin_update_status(order_id: str, status_value: str, admin=Depends(re
     updated = normalize_id(updated)
     if updated is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Order not found")
+    await emit_event(
+        db,
+        "order.status_changed",
+        {"order_number": updated.get("number"), "from": (before or {}).get("status"), "to": status_value, "by": admin.get("email")},
+        source="admin",
+    )
     return updated
